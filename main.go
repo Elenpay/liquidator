@@ -21,8 +21,7 @@ THE SOFTWARE.
 */
 package main
 
-import "liquidator/cmd"
 
 func main() {
-	cmd.Execute()
+	Execute()
 }

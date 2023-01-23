@@ -19,31 +19,37 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
-package cmd
+package main
 
 import (
 	"log"
 	"os"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "liquidator",
 	Short: "A CLI tool to monitor and automate the liquidity of your LND channels",
 	Run: func(cmd *cobra.Command, args []string) { 
-		ErrorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Llongfile)
-		InfoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
-		DebugLog = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Llongfile)
-		WarnLog = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Llongfile)
-
+		//Init loggers
+		InitLoggers()
+		
 		InfoLog.Println("Starting liquidator")
 		startLiquidator()
 		
 	},
+}
+
+func InitLoggers(){
+		ErrorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Llongfile)
+		InfoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
+		DebugLog = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Llongfile)
+		WarnLog = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Llongfile)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -56,12 +62,9 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-
 
 	//OTEL Expanded vars
 	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", os.ExpandEnv("$OTEL_EXPORTER_OTLP_ENDPOINT"))
@@ -69,13 +72,17 @@ func init() {
 	
 	viper.AutomaticEnv() // read in environment variables that match
 
-	rootCmd.Flags().StringSlice("nodesHosts", []string{}, "Command separated list of hostname:port to connect to")
+	rootCmd.Flags().String("nodesHosts", "", "Command separated list of hostname:port to connect to")
 	viper.BindPFlag("nodesHosts", rootCmd.Flags().Lookup("nodesHosts"))
 
-	rootCmd.Flags().StringSlice("nodesMacaroons", []string{}, "Command separated list of macaroons used in nodesHosts, in the same order")
+	rootCmd.Flags().String("nodesMacaroons", "", "Command separated list of macaroons used in nodesHosts, in the same order of NODESHOSTS")
 	viper.BindPFlag("nodesMacaroons", rootCmd.Flags().Lookup("nodesMacaroons"))
 
-	rootCmd.Flags().Int64("pollingInterval", 10, "Interval to poll data in seconds")
+
+	rootCmd.Flags().String("nodesTLSCerts", "", "Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS")
+	viper.BindPFlag("nodesTLSCerts", rootCmd.Flags().Lookup("nodesTLSCerts"))
+
+	rootCmd.Flags().String("pollingInterval", "15s", "Interval to poll data")
 	viper.BindPFlag("pollingInterval", rootCmd.Flags().Lookup("pollingInterval"))
 
 	//If nodesHosts length is different than nodesMacaroons, exit
@@ -83,15 +90,10 @@ func init() {
 		ErrorLog.Fatal("nodesHosts and nodesMacaroons must have the same length")
 	}
 	//Now we set the global vars
-	nodesHosts = viper.GetStringSlice("nodesHosts")
-	nodesMacaroons = viper.GetStringSlice("nodesMacaroons")
-	pollingInterval = viper.GetInt64("pollingInterval")
+	nodesHosts = strings.Split(viper.GetString("nodesHosts"), ",")
+	nodesMacaroons = strings.Split(viper.GetString("nodesMacaroons"), ",")
+	nodesTLSCerts = strings.Split(viper.GetString("nodesTLSCerts"), ",")
+	pollingInterval = viper.GetDuration("pollingInterval")
 
 }
 
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-
-
-}

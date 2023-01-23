@@ -1,13 +1,15 @@
-package cmd
+package main
 
 import (
 	"log"
+	"time"
 )
 
 var (
 	nodesHosts      []string
 	nodesMacaroons  []string
-	pollingInterval int64 //in seconds
+	nodesTLSCerts   []string
+	pollingInterval time.Duration // Parseable by time.ParseDuration
 	ErrorLog        *log.Logger
 	InfoLog         *log.Logger
 	DebugLog        *log.Logger
@@ -22,8 +24,6 @@ type App struct {
 	WarnLog  *log.Logger
 }
 
-const name = "Moneytor"
-
 func NewApp(errorLog *log.Logger, InfoLog *log.Logger, DebugLog *log.Logger, WarnLog *log.Logger) *App {
 	return &App{
 		ErrorLog: errorLog,
@@ -33,20 +33,3 @@ func NewApp(errorLog *log.Logger, InfoLog *log.Logger, DebugLog *log.Logger, War
 	}
 }
 
-func handleErr(err error, message string) {
-	if err != nil {
-		ErrorLog.Fatalf("%s: %v", message, err)
-	}
-}
-
-func handleInfo(message string) {
-
-	InfoLog.Printf("%s", message)
-
-}
-
-func handleDebug(message string) {
-
-	DebugLog.Printf("%s", message)
-
-}
