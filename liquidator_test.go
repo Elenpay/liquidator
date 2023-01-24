@@ -1,10 +1,10 @@
 package main
 
 import (
-	"context"
+	//"context"
 	"testing"
 
-	gomock "github.com/golang/mock/gomock"
+	//gomock "github.com/golang/mock/gomock"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
 )
