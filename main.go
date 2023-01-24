@@ -21,6 +21,16 @@ THE SOFTWARE.
 */
 package main
 
+import (
+	"time"
+)
+
+var (
+	nodesHosts      []string
+	nodesMacaroons  []string
+	nodesTLSCerts   []string
+	pollingInterval time.Duration // Parseable by time.ParseDuration
+)
 
 func main() {
 	Execute()

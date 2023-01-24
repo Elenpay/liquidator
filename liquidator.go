@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -28,6 +29,9 @@ type metrics struct {
 
 // Inits the prometheusMetrics global metric struct
 func InitMetrics(reg prometheus.Registerer) {
+
+	log.Debug("Registering prometheus metrics")
+
 	m := &metrics{
 		channelBalanceGauge: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "liquidator_channel_balance",
@@ -47,6 +51,7 @@ func InitMetrics(reg prometheus.Registerer) {
 	prometheusMetrics = m
 }
 
+// Entrypoint of liquidator main logic
 func startLiquidator() {
 
 	var wg = &sync.WaitGroup{}
@@ -56,38 +61,43 @@ func startLiquidator() {
 
 	InitMetrics(reg)
 
+	log.Debug("Prometheus metrics registered")
+
+	log.Debug("Starting /metrics endpoint")
 	//Start a http server to expose metrics
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg, EnableOpenMetrics: true}))
 	go http.ListenAndServe(":9000", nil)
+
+	log.Debug("/metrics endpoint started")
 
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
 	for i, node := range nodesHosts {
 
-		InfoLog.Println("starting monitoring for node: %v", node)
+		log.Infof("Starting monitoring for node: %v", node)
 
 		//Generate TLS credentials from directory
 		tlsCertEncoded := nodesTLSCerts[i]
 		tlsCertDecoded, err := base64.StdEncoding.DecodeString(tlsCertEncoded)
 		if err != nil {
-			ErrorLog.Fatalf("Failed to decode TLS cert: %v", err)
+			log.Fatalf("Failed to decode TLS cert: %v", err)
 		}
 
 		cp := x509.NewCertPool()
 		if !cp.AppendCertsFromPEM(tlsCertDecoded) {
-			ErrorLog.Fatalf("credentials: failed to append certificates")
+			log.Fatalf("credentials: failed to append certificates")
 		}
 
 		creds := credentials.NewClientTLSFromCert(cp, "")
 
 		if err != nil {
-			ErrorLog.Fatalf("Failed to load credentials: %v", err)
+			log.Fatalf("Failed to load credentials: %v", err)
 		}
 
 		conn, err := grpc.Dial(node, grpc.WithTransportCredentials(creds))
 
 		if err != nil {
-			ErrorLog.Fatalf("did not connect: %v", err)
+			log.Fatalf("did not connect: %v", err)
 		}
 		defer conn.Close()
 
@@ -98,7 +108,7 @@ func startLiquidator() {
 		macaroon := nodesMacaroons[i]
 
 		if macaroon == "" {
-			ErrorLog.Fatalf("No macaroon provided for node %v", node)
+			log.Fatalf("No macaroon provided for node %v", node)
 		}
 
 		wg.Add(1)
@@ -117,7 +127,7 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	capacity := float64(channel.GetCapacity())
 
 	if capacity <= 0 {
-		ErrorLog.Printf("Channel capacity is <= 0")
+		log.Printf("Channel capacity is <= 0")
 		err := fmt.Errorf("channel capacity is <= 0")
 		return -1, err
 	}
@@ -131,7 +141,7 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 
 	//Check that the ration is between 0 and 1
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
-		ErrorLog.Println("Channel balance ratio is not between 0 and 1")
+		log.Println("Channel balance ratio is not between 0 and 1")
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
 		return -1, err
 	}
@@ -143,10 +153,24 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 // Locking fuction to be used in a goroutine to monitor channels
 func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.LightningClient, ctx context.Context) {
 
+	//Defer a recover function to catch panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("Recovered panic in monitorChannels function, retrying...", r)
+
+			//Sleep for 10 seconds before restarting the monitoring
+			time.Sleep(10 * time.Second)
+
+			//Restart monitoring via recursion
+			monitorChannels(nodeHost, macaroon, lightningClient, ctx)
+		}
+
+	}()
+
 	//Check that nodehost matches host:port string
 	if nodeHost == "" {
 		error := fmt.Errorf("nodeHost is empty")
-		ErrorLog.Println(error, "nodeHost is empty")
+		log.Println(error, "nodeHost is empty")
 	}
 
 	md := metadata.New(map[string]string{"macaroon": macaroon})
@@ -162,16 +186,27 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 		})
 
 		if err != nil {
-			ErrorLog.Printf("Error listing channels: %v", err)
+			log.Errorf("Error listing channels: %v", err)
+		}
+
+		if response == nil || len(response.Channels) == 0 {
+			log.Printf("No channels found for node %v", nodeHost)
+
+			time.Sleep(1 * time.Second)
+
+			continue
 		}
 
 		//Iterate over response channels
 		for _, channel := range response.Channels {
+			log.Debugf("Monitoring Channel Id: %v", channel.ChanId)
 			//Record the channel balance in a prometheus gauge
 			channelBalanceRatio, err := recordChannelBalance(channel)
+			//Log channel balance ratio in debug mode
+			log.Debugf("Channel balance ratio for node %v channel %v is %v", nodeHost, channel.GetChanId(), channelBalanceRatio)
 
 			if err != nil {
-				ErrorLog.Printf("Error calculating channel balance: %v", err)
+				log.Printf("Error calculating channel balance: %v", err)
 			}
 
 			//ChannelId uint to string
@@ -181,13 +216,13 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			localNodeInfo, err := getInfo(&lightningClient, &context)
 
 			if err != nil {
-				ErrorLog.Printf("Error getting local node info: %v", err)
+				log.Printf("Error getting local node info: %v", err)
 			}
 
 			remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
 
 			if err != nil {
-				ErrorLog.Printf("Error getting remote node info: %v", err)
+				log.Printf("Error getting remote node info: %v", err)
 
 			}
 
@@ -201,6 +236,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 
 			time.Sleep(pollingInterval)
 		}
+
 	}
 
 }
@@ -211,7 +247,7 @@ func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (
 	response, err := (*lightningClient).GetInfo(*context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
-		ErrorLog.Printf("Error getting info: %v", err)
+		log.Printf("Error getting info: %v", err)
 		return nil, err
 	}
 
@@ -221,10 +257,9 @@ func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (
 // Gets the info from the node with the given pubkey
 func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.NodeInfo, error) {
 
-	//TODO
 	if pubkey == "" {
 		error := fmt.Errorf("pubkey is empty")
-		ErrorLog.Println(error, "pubkey is empty")
+		log.Println(error, "pubkey is empty")
 		return nil, error
 
 	}
@@ -235,7 +270,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 	})
 
 	if err != nil {
-		ErrorLog.Printf("Error getting node info: %v", err)
+		log.Printf("Error getting node info: %v", err)
 		return nil, err
 	}
 

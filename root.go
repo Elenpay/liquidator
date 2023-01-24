@@ -22,7 +22,7 @@ THE SOFTWARE.
 package main
 
 import (
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
 
@@ -30,26 +30,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "liquidator",
 	Short: "A CLI tool to monitor and automate the liquidity of your LND channels",
-	Run: func(cmd *cobra.Command, args []string) { 
-		//Init loggers
-		InitLoggers()
-		
-		InfoLog.Println("Starting liquidator")
-		startLiquidator()
-		
-	},
-}
+	Run: func(cmd *cobra.Command, args []string) {
 
-func InitLoggers(){
-		ErrorLog = log.New(os.Stdout, "ERROR: ", log.Ldate|log.Ltime|log.Llongfile)
-		InfoLog = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
-		DebugLog = log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime|log.Llongfile)
-		WarnLog = log.New(os.Stdout, "WARNING: ", log.Ldate|log.Ltime|log.Llongfile)
+		//Cobra main
+
+		log.Infoln("Starting liquidator")
+		startLiquidator()
+
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -69,7 +61,7 @@ func init() {
 	//OTEL Expanded vars
 	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", os.ExpandEnv("$OTEL_EXPORTER_OTLP_ENDPOINT"))
 	os.Setenv("OTLP_RESOURCES_ATTRIBUTES", os.ExpandEnv("$OTLP_RESOURCES_ATTRIBUTES"))
-	
+
 	viper.AutomaticEnv() // read in environment variables that match
 
 	rootCmd.Flags().String("nodesHosts", "", "Command separated list of hostname:port to connect to")
@@ -78,16 +70,21 @@ func init() {
 	rootCmd.Flags().String("nodesMacaroons", "", "Command separated list of macaroons used in nodesHosts, in the same order of NODESHOSTS")
 	viper.BindPFlag("nodesMacaroons", rootCmd.Flags().Lookup("nodesMacaroons"))
 
-
 	rootCmd.Flags().String("nodesTLSCerts", "", "Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS")
 	viper.BindPFlag("nodesTLSCerts", rootCmd.Flags().Lookup("nodesTLSCerts"))
 
 	rootCmd.Flags().String("pollingInterval", "15s", "Interval to poll data")
 	viper.BindPFlag("pollingInterval", rootCmd.Flags().Lookup("pollingInterval"))
 
+	rootCmd.Flags().String("logLevel", "info", "Log level from values: {trace, debug, info, warn, error, fatal, panic}")
+	viper.BindPFlag("logLevel", rootCmd.Flags().Lookup("logLevel"))
+
+	rootCmd.Flags().String("logFormat", "text", "Log format from: {text, json}")
+	viper.BindPFlag("logFormat", rootCmd.Flags().Lookup("logFormat"))
+
 	//If nodesHosts length is different than nodesMacaroons, exit
 	if len(viper.GetStringSlice("nodesHosts")) != len(viper.GetStringSlice("nodesMacaroons")) {
-		ErrorLog.Fatal("nodesHosts and nodesMacaroons must have the same length")
+		log.Fatal("nodesHosts and nodesMacaroons must have the same length")
 	}
 	//Now we set the global vars
 	nodesHosts = strings.Split(viper.GetString("nodesHosts"), ",")
@@ -95,5 +92,27 @@ func init() {
 	nodesTLSCerts = strings.Split(viper.GetString("nodesTLSCerts"), ",")
 	pollingInterval = viper.GetDuration("pollingInterval")
 
-}
+	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))
+	if err != nil {
+		log.Fatal("Invalid log level")
+	}
 
+	log.SetLevel(logLevel)
+
+	if viper.GetString("logFormat") == "json" {
+		log.SetFormatter(&log.JSONFormatter{})
+	} else if viper.GetString("logFormat") == "text" {
+		log.SetFormatter(&log.TextFormatter{})
+	} else {
+		log.Fatal("Invalid log format")
+	}
+
+	// Log debug of the config
+	log.Debug("nodesHosts: ", nodesHosts)
+	log.Debug("nodesMacaroons: ", nodesMacaroons)
+	log.Debug("nodesTLSCerts: ", nodesTLSCerts)
+	log.Debug("pollingInterval: ", pollingInterval)
+	log.Debug("logLevel: ", logLevel)
+	log.Debug("logFormat: ", viper.GetString("logFormat"))
+
+}

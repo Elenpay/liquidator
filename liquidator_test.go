@@ -11,10 +11,10 @@ import (
 
 // Tear up method
 func TestMain(m *testing.M) {
-	//Setup
+	//Tear up
 	InitMetrics(prometheus.NewRegistry())
-	InitLoggers()
 
+	//Run tests
 	m.Run()
 
 	//Tear down
