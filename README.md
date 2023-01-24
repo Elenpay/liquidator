@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="liquidator.png" width="100px" />
+</p>
+
 # Description
 A CLI tool to monitor and automate the liquidity of your LND channels
 

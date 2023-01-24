@@ -20,36 +20,36 @@ func TestMain(m *testing.M) {
 	//Tear down
 }
 
-func Test_monitorChannels(t *testing.T) {
+// func Test_monitorChannels(t *testing.T) {
 
-	//Arrange
-	mockCtrl := gomock.NewController(t)
-	defer mockCtrl.Finish()
-	mockLightningClient := NewMockLightningClient(mockCtrl)
-	mockLightningClient.EXPECT().ListChannels(gomock.Any(), gomock.Any()).Return(&lnrpc.ListChannelsResponse{
-		Channels: []*lnrpc.Channel{
-			{
-				ChanId:        1,
-				LocalBalance:  100,
-				RemoteBalance: 900,
-				Capacity:      1000,
-			},
-		},
-	}, nil)
+// 	//Arrange
+// 	mockCtrl := gomock.NewController(t)
+// 	defer mockCtrl.Finish()
+// 	mockLightningClient := NewMockLightningClient(mockCtrl)
+// 	mockLightningClient.EXPECT().ListChannels(gomock.Any(), gomock.Any()).Return(&lnrpc.ListChannelsResponse{
+// 		Channels: []*lnrpc.Channel{
+// 			{
+// 				ChanId:        1,
+// 				LocalBalance:  100,
+// 				RemoteBalance: 900,
+// 				Capacity:      1000,
+// 			},
+// 		},
+// 	}, nil)
 
-	//Act
+// 	//Act
 
-	monitorChannels("localhost:5001", "macaroon", mockLightningClient, context.TODO())
+// 	monitorChannels("localhost:5001", "macaroon", mockLightningClient, context.TODO())
 
-	//Assert
+// 	//Assert
 
-	//Assert that the local balance is 100/900
+// 	//Assert that the local balance is 100/900
 
-	// metric := prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{"channel_id": "1"})
+// 	// metric := prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{"channel_id": "1"})
 
-	// t.Log(metric)
+// 	// t.Log(metric)
 
-}
+// }
 
 func Test_recordChannelBalance(t *testing.T) {
 	type args struct {

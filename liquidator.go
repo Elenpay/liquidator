@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,7 +38,7 @@ func InitMetrics(reg prometheus.Registerer) {
 			Name: "liquidator_channel_balance",
 			Help: "The total number of processed events",
 		},
-			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias"},
+			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active"},
 		),
 	}
 
@@ -227,12 +228,22 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			}
 
 			//Set the channel balance in the gauge
+			localPubKey := localNodeInfo.IdentityPubkey
+			remotePubKey := channel.GetRemotePubkey()
+			localAlias := localNodeInfo.Alias
+			remoteAlias := remoteNodeInfo.GetNode().Alias
+			//Channel Active to string
+			active := strconv.FormatBool(channel.GetActive())
+
+
 			prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
 				"channel_id":         channelId,
-				"local_node_pubkey":  localNodeInfo.IdentityPubkey,
-				"remote_node_pubkey": channel.GetRemotePubkey(),
-				"local_node_alias":   localNodeInfo.Alias,
-				"remote_node_alias":  remoteNodeInfo.GetNode().Alias}).Set(channelBalanceRatio)
+				"local_node_pubkey":  localPubKey,
+				"remote_node_pubkey": remotePubKey,
+				"local_node_alias":   localAlias,
+				"remote_node_alias":  remoteAlias,
+				"active":	active,
+				}).Set(channelBalanceRatio)
 
 			time.Sleep(pollingInterval)
 		}
