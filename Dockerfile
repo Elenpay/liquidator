@@ -8,4 +8,7 @@ FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /src/
 COPY --from=builder /src/liquidator .
+
+EXPOSE 9000
+
 ENTRYPOINT ["./liquidator"]
