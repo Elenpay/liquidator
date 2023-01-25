@@ -141,7 +141,7 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	//Truncate channelbalance to 2 decimal places
 	channelBalanceRatio := float64(int(channelBalanceRatioInt*100)) / 100
 
-	//Check that the ration is between 0 and 1
+	//Check that the ratio is between 0 and 1
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
 		
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
