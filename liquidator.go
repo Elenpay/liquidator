@@ -128,8 +128,9 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	capacity := float64(channel.GetCapacity())
 
 	if capacity <= 0 {
-		log.Printf("Channel capacity is <= 0")
+		
 		err := fmt.Errorf("channel capacity is <= 0")
+		log.Error(err)
 		return -1, err
 	}
 
@@ -142,8 +143,9 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 
 	//Check that the ration is between 0 and 1
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
-		log.Println("Channel balance ratio is not between 0 and 1")
+		
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
+		log.Error(err)
 		return -1, err
 	}
 
@@ -171,7 +173,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 	//Check that nodehost matches host:port string
 	if nodeHost == "" {
 		error := fmt.Errorf("nodeHost is empty")
-		log.Println(error, "nodeHost is empty")
+		log.Error(error)
 	}
 
 	md := metadata.New(map[string]string{"macaroon": macaroon})
@@ -191,7 +193,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 		}
 
 		if response == nil || len(response.Channels) == 0 {
-			log.Printf("No channels found for node %v", nodeHost)
+			log.Errorf("No channels found for node %v", nodeHost)
 
 			time.Sleep(1 * time.Second)
 
@@ -207,7 +209,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			log.Debugf("Channel balance ratio for node %v channel %v is %v", nodeHost, channel.GetChanId(), channelBalanceRatio)
 
 			if err != nil {
-				log.Printf("Error calculating channel balance: %v", err)
+				log.Errorf("Error calculating channel balance: %v", err)
 			}
 
 			//ChannelId uint to string
@@ -217,13 +219,13 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			localNodeInfo, err := getInfo(&lightningClient, &context)
 
 			if err != nil {
-				log.Printf("Error getting local node info: %v", err)
+				log.Errorf("Error getting local node info: %v", err)
 			}
 
 			remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
 
 			if err != nil {
-				log.Printf("Error getting remote node info: %v", err)
+				log.Errorf("Error getting remote node info: %v", err)
 
 			}
 
@@ -258,7 +260,7 @@ func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (
 	response, err := (*lightningClient).GetInfo(*context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
-		log.Printf("Error getting info: %v", err)
+		log.Errorf("Error getting info: %v", err)
 		return nil, err
 	}
 
@@ -270,7 +272,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 
 	if pubkey == "" {
 		error := fmt.Errorf("pubkey is empty")
-		log.Println(error, "pubkey is empty")
+		log.Error(error, "pubkey is empty")
 		return nil, error
 
 	}
@@ -281,7 +283,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 	})
 
 	if err != nil {
-		log.Printf("Error getting node info: %v", err)
+		log.Errorf("Error getting node info: %v", err)
 		return nil, err
 	}
 
