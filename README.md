@@ -56,7 +56,7 @@ just test
 All the flags can be set as environment variables, with the following format, except stated, they are all mandatory:
 
 - NODESHOSTS: Command separated list of hostname:port to connect to
-- NODESMACAROONS : Command separated list of macaroons used in nodesHosts, in the same order of NODESHOSTS
+- NODESMACAROONS : Command separated list of macaroons in **hex** used in nodesHosts, in the same order of NODESHOSTS
 - NODESTLSCERTS : Command separated list of tls certs from LNDS in **base64**, in the same order of NODESHOSTS and NODESMACAROONS
 - POLLINGINTERVAL (optional) : Interval to poll data(default 15s)
 - LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}

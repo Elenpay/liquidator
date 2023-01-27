@@ -67,7 +67,7 @@ func init() {
 	rootCmd.Flags().String("nodesHosts", "", "Command separated list of hostname:port to connect to")
 	viper.BindPFlag("nodesHosts", rootCmd.Flags().Lookup("nodesHosts"))
 
-	rootCmd.Flags().String("nodesMacaroons", "", "Command separated list of macaroons used in nodesHosts, in the same order of NODESHOSTS")
+	rootCmd.Flags().String("nodesMacaroons", "", "Command separated list of macaroons used in nodesHosts in hex, in the same order of NODESHOSTS")
 	viper.BindPFlag("nodesMacaroons", rootCmd.Flags().Lookup("nodesMacaroons"))
 
 	rootCmd.Flags().String("nodesTLSCerts", "", "Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS")
