@@ -47,7 +47,7 @@ just test
 
 ## Requirements
 
-- [just]()
+- [just](https://github.com/casey/just)
 - Polar 
 - Go 1.19
 
