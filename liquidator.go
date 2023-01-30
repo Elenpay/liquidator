@@ -35,10 +35,10 @@ func InitMetrics(reg prometheus.Registerer) {
 
 	m := &metrics{
 		channelBalanceGauge: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "liquidator_channel_balance",
+			Name: "liquidator.channel_balance",
 			Help: "The total number of processed events",
 		},
-			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active"},
+			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
 		),
 	}
 
@@ -236,8 +236,8 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			remoteAlias := remoteNodeInfo.GetNode().Alias
 			//Channel Active to string
 			active := strconv.FormatBool(channel.GetActive())
-
-
+			initiator := strconv.FormatBool(channel.GetInitiator())
+			
 			prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
 				"channel_id":         channelId,
 				"local_node_pubkey":  localPubKey,
@@ -245,6 +245,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 				"local_node_alias":   localAlias,
 				"remote_node_alias":  remoteAlias,
 				"active":	active,
+				"initiator":	initiator,
 				}).Set(channelBalanceRatio)
 
 			time.Sleep(pollingInterval)
