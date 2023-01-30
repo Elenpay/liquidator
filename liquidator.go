@@ -35,7 +35,7 @@ func InitMetrics(reg prometheus.Registerer) {
 
 	m := &metrics{
 		channelBalanceGauge: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "liquidator_channel_balance",
+			Name: "liquidator.channel_balance",
 			Help: "The total number of processed events",
 		},
 			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
