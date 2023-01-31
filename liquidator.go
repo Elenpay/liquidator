@@ -135,14 +135,6 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	}
 
 	remoteBalance := float64(channel.GetRemoteBalance())
-	localBalance := float64(channel.GetLocalBalance())
-
-	if localBalance+remoteBalance != capacity {
-
-		err := fmt.Errorf("channel balance does not match capacity")
-		log.Error(err)
-		return -1, err
-	}
 
 	channelBalanceRatioInt := remoteBalance / capacity
 
@@ -160,6 +152,8 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	return channelBalanceRatio, nil
 
 }
+
+
 
 // Locking fuction to be used in a goroutine to monitor channels
 func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.LightningClient, ctx context.Context) {
