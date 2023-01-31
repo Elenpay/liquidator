@@ -69,15 +69,15 @@ func Test_recordChannelBalance(t *testing.T) {
 				RemoteBalance: 900,
 				Capacity:      1000,
 			},
-			0.1, false}},
+			0.9, false}},
 		{"Test 2 positive", args{
 			&lnrpc.Channel{
 				ChanId:        1,
-				LocalBalance:  1000,
-				RemoteBalance: 900,
+				LocalBalance:  900,
+				RemoteBalance: 100,
 				Capacity:      1000,
 			},
-			1, false}},
+			0.1, false}},
 		{"Test 3 negative", args{
 			&lnrpc.Channel{
 				ChanId:        1,
@@ -89,7 +89,7 @@ func Test_recordChannelBalance(t *testing.T) {
 		{"Test 4 negative", args{
 			&lnrpc.Channel{
 				ChanId:        1,
-				LocalBalance:  1100,
+				LocalBalance:  1200,
 				RemoteBalance: 100,
 				Capacity:      1000,
 			},

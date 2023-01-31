@@ -128,22 +128,30 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	capacity := float64(channel.GetCapacity())
 
 	if capacity <= 0 {
-		
+
 		err := fmt.Errorf("channel capacity is <= 0")
 		log.Error(err)
 		return -1, err
 	}
 
+	remoteBalance := float64(channel.GetRemoteBalance())
 	localBalance := float64(channel.GetLocalBalance())
 
-	channelBalanceRatioInt := localBalance / capacity
+	if localBalance+remoteBalance != capacity {
+
+		err := fmt.Errorf("channel balance does not match capacity")
+		log.Error(err)
+		return -1, err
+	}
+
+	channelBalanceRatioInt := remoteBalance / capacity
 
 	//Truncate channelbalance to 2 decimal places
 	channelBalanceRatio := float64(int(channelBalanceRatioInt*100)) / 100
 
 	//Check that the ratio is between 0 and 1
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
-		
+
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
 		log.Error(err)
 		return -1, err
@@ -237,16 +245,16 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			//Channel Active to string
 			active := strconv.FormatBool(channel.GetActive())
 			initiator := strconv.FormatBool(channel.GetInitiator())
-			
+
 			prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
 				"channel_id":         channelId,
 				"local_node_pubkey":  localPubKey,
 				"remote_node_pubkey": remotePubKey,
 				"local_node_alias":   localAlias,
 				"remote_node_alias":  remoteAlias,
-				"active":	active,
-				"initiator":	initiator,
-				}).Set(channelBalanceRatio)
+				"active":             active,
+				"initiator":          initiator,
+			}).Set(channelBalanceRatio)
 
 			time.Sleep(pollingInterval)
 		}
