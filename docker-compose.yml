@@ -2,6 +2,8 @@ version: '3'
 services:
   loopserver:
     hostname: loopserver
+    ports:
+      - "11009:11009"
     extra_hosts:
       - "alice:host-gateway"
     #image: lightninglabs/loopserver:v0.9.77-beta
@@ -25,27 +27,31 @@ services:
     volumes:
       - ./regtest.polar/volumes/lnd/alice:/home/loopserver/.lnd
 
-  loopd:
-    image: loopd
-    extra_hosts:
-      - "carol:host-gateway"
-    build:
-      context: ./loop
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    networks:
-      - regtest
-    volumes:
-      - "./regtest.polar/volumes/lnd/carol:/root/.lnd"
-    command:
-      - "loopd"
-      - "--network=regtest"
-      - "--debuglevel=debug"
-      - "--server.host=loopserver:11009"
-      - "--server.notls"
-      - "--lnd.host=carol:10003"
-      - "--lnd.macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
-      - "--lnd.tlspath=/root/.lnd/tls.cert"
+  # loopd:
+  #   image: loopd
+  #   extra_hosts:
+  #     - "carol:host-gateway"
+  #   build:
+  #     context: ./loop
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   networks:
+  #     - regtest
+  #   ports:
+  #     - "11010:11010"
+  #     - "8088:8081"
+  #   volumes:
+  #     - "./regtest.polar/volumes/lnd/carol:/root/.lnd"
+  #     - "./loop:/root/.loop"
+  #   command:
+  #     - "loopd"
+  #     - "--network=regtest"
+  #     - "--debuglevel=debug"
+  #     - "--server.host=loopserver:11009"
+  #     - "--server.notls"
+  #     - "--lnd.host=carol:10003"
+  #     - "--lnd.macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
+  #     - "--lnd.tlspath=/root/.lnd/tls.cert"
 
 networks:
   regtest:
