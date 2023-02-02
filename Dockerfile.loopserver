@@ -1,0 +1,15 @@
+FROM lightninglabs/loopserver:v0.9.86-beta
+
+COPY regtest.polar/volumes/lnd/alice /root/.lnd
+
+USER root
+
+RUN chmod -R 777 /root/.lnd
+RUN chown -R loopserver:loopserver /root/.lnd
+
+
+
+USER loopserver
+
+
+

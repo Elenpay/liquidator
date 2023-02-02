@@ -1,0 +1,51 @@
+version: '3'
+services:
+  loopserver:
+    extra_hosts:
+      - "alice:host-gateway"
+    #image: lightninglabs/loopserver:v0.9.77-beta
+    build:
+      context: .
+      dockerfile: Dockerfile.loopserver
+    platform: linux/amd64
+    restart: unless-stopped
+    networks:
+      - regtest
+    command:
+      - "daemon"
+      - "--maxamt=5000000"
+      - "--lnd.host=alice:10001"
+      - "--lnd.macaroondir=/home/loopserver/.lnd/data/chain/bitcoin/regtest"
+      - "--lnd.tlspath=/home/loopserver/.lnd/tls.cert"
+      - "--bitcoin.host=alice:18443"
+      - "--bitcoin.user=polaruser"
+      - "--bitcoin.password=polaruser"
+      - "--bitcoin.httppostmode"
+
+
+
+    volumes:
+      - ./regtest.polar/volumes/lnd/alice:/home/loopserver/.lnd
+
+  loopd:
+    image: loopd
+    build:
+      context: ./loop
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - regtest
+    volumes:
+      - "/Users/joseap/.polar/networks/1/volumes/lnd/carol:/root/.lnd"
+    command:
+      - "loopd"
+      - "--network=regtest"
+      - "--debuglevel=debug"
+      - "--server.host=regtest_loopserver_1:11009"
+      - "--server.notls"
+      - "--lnd.host=host.docker.internal:10003"
+      - "--lnd.macaroonpath=/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
+      - "--lnd.tlspath=/root/.lnd/tls.cert"
+
+networks:
+  regtest:

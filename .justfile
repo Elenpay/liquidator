@@ -1,3 +1,4 @@
+
 init-submodules:
     git submodule init && git submodule update
 build:
@@ -11,5 +12,5 @@ compile-proto:
 cover-test:
     go test -coverprofile=coverage.out && go tool cover -html=coverage.out
 
-
-
+build-loopserver arg='':
+    rm -rf regtest.polar && mkdir regtest.polar && tar -xf regtest.polar.zip -C regtest.polar && docker build {{arg}} -t loopserver -f Dockerfile.loopserver .

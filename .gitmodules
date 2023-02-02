@@ -1,3 +1,6 @@
 [submodule "lnd"]
 	path = lnd
 	url = https://github.com/lightningnetwork/lnd.git
+[submodule "loop"]
+	path = loop
+	url = https://github.com/lightninglabs/loop
