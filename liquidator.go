@@ -38,7 +38,7 @@ func InitMetrics(reg prometheus.Registerer) {
 			Name: "liquidator_channel_balance",
 			Help: "The total number of processed events",
 		},
-			[]string{"channel_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
+			[]string{"chan_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
 		),
 	}
 
@@ -152,8 +152,6 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 	return channelBalanceRatio, nil
 
 }
-
-
 
 // Locking fuction to be used in a goroutine to monitor channels
 func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.LightningClient, ctx context.Context) {
