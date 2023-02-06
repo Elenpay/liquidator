@@ -239,7 +239,7 @@ func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.Lig
 			initiator := strconv.FormatBool(channel.GetInitiator())
 
 			prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
-				"channel_id":         channelId,
+				"chan_id":         channelId,
 				"local_node_pubkey":  localPubKey,
 				"remote_node_pubkey": remotePubKey,
 				"local_node_alias":   localAlias,
