@@ -7,9 +7,7 @@ services:
     extra_hosts:
       - "alice:host-gateway"
     #image: lightninglabs/loopserver:v0.9.77-beta
-    build:
-      context: .
-      dockerfile: Dockerfile.loopserver
+    image: loopserver
     platform: linux/amd64
     restart: unless-stopped
     networks:
