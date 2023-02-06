@@ -18,15 +18,23 @@ Flags:
       --nodesTLSCerts string     Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS
       --pollingInterval string   Interval to poll data (default "15s")
 ```
-# Setup
+# Requirements
 This project uses [just](https://github.com/casey/just) with the following recipes
 ```
 Available recipes:
     build
+    build-loopserver arg=''
     compile-proto
     cover-test
     init-submodules
+    install-loopd-loop
+    loop *args=''
+    loopin sats='1000000'
+    loopout chanid sats='500000'
     run
+    start-all
+    start-loopd-carol
+    start-loopserver
     test
 ```
 
@@ -45,11 +53,25 @@ just test
 1. Launch a local regtest with polar from regtest.polar.zip
 2. Lauch with VS Code pre-defined configuration
 
-## Requirements
+## Setup loop/loopd/loopserver regtest environment
+1. Make sure your regtest.polar.zip network in polar is running
+2. Get git submodules
+````
+just init-submodules
+````
+3. Compile and install loopd/loop binaries (Make sure your golang install bin dir is reachable from your PATH)
+````
+just install-loopd-loop
+````
+4. Using just, run the following command:
+````
+just start-all
+````
+5. This comand should have build a `loopserver `docker image, and started a `loopserver` container along with loopd as a native binary.
 
-- [just](https://github.com/casey/just)
-- Polar 
-- Go 1.19
+## Loop just recipes
+There are a few recipes using `just -l` to interact with loopd for loop in, loop out and calling loop CLI with args (`just loop <args>`).
+
 
 # Environment Variables / Flags
 
