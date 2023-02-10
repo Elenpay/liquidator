@@ -1,22 +1,35 @@
-module liquidator
+module github.com/Elenpay/liquidator
 
-go 1.19
+go 1.20
 
 require (
 	github.com/lightningnetwork/lnd/lnrpc v0.0.2
 	google.golang.org/grpc v1.52.0
 )
 
+require (
+	github.com/btcsuite/btcd v0.20.1-beta // indirect
+	github.com/lightninglabs/loop/swapserverrpc v1.0.3 // indirect
+	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
+)
+
+//replace for lnrpc
 replace github.com/lightningnetwork/lnd/lnrpc => ./github.com/lightningnetwork/lnd/lnrpc
 
+//replace for looprc
+replace github.com/lightninglabs/loop/looprpc => ./github.com/lightninglabs/loop/looprpc
+
 require (
+	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/btcsuite/btcutil v1.0.2
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/lightninglabs/loop/looprpc v0.0.0-00010101000000-000000000000
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -37,7 +50,7 @@ require (
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20230119192704-9d59e20e5cd1 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

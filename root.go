@@ -82,15 +82,28 @@ func init() {
 	rootCmd.Flags().String("logFormat", "text", "Log format from: {text, json}")
 	viper.BindPFlag("logFormat", rootCmd.Flags().Lookup("logFormat"))
 
+	//Flags for nodeguard grpc endpoint
+	rootCmd.Flags().String("nodeguardHost", "", "Hostname:port to connect to nodeguard")
+	viper.BindPFlag("nodeguardHost", rootCmd.Flags().Lookup("nodeguardHost"))
+
 	//If nodesHosts length is different than nodesMacaroons, exit
 	if len(viper.GetStringSlice("nodesHosts")) != len(viper.GetStringSlice("nodesMacaroons")) {
 		log.Fatal("nodesHosts and nodesMacaroons must have the same length")
 	}
+
 	//Now we set the global vars
 	nodesHosts = strings.Split(viper.GetString("nodesHosts"), ",")
 	nodesMacaroons = strings.Split(viper.GetString("nodesMacaroons"), ",")
 	nodesTLSCerts = strings.Split(viper.GetString("nodesTLSCerts"), ",")
 	pollingInterval = viper.GetDuration("pollingInterval")
+	nodeguardHost = viper.GetString("nodeguardHost")
+
+	// //Check that nodeguardHost is not empty
+	// if nodeguardHost == "" {
+	// 	log.Fatal("nodeguardHost is empty")
+	// }
+
+	//Set log level and format
 
 	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))
 	if err != nil {
@@ -114,5 +127,6 @@ func init() {
 	log.Debug("pollingInterval: ", pollingInterval)
 	log.Debug("logLevel: ", logLevel)
 	log.Debug("logFormat: ", viper.GetString("logFormat"))
+	log.Debug("nodeguardHost: ", nodeguardHost)
 
 }

@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "loop"
+		},
+		{
+			"path": "lnd"
 		}
 	],
 	"settings": {}

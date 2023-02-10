@@ -1,10 +1,12 @@
 package main
 
 import (
-	//"context"
 	"testing"
 
-	//gomock "github.com/golang/mock/gomock"
+	"github.com/Elenpay/liquidator/nodeguard"
+	"github.com/Elenpay/liquidator/provider"
+	gomock "github.com/golang/mock/gomock"
+	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -12,7 +14,7 @@ import (
 // Tear up method
 func TestMain(m *testing.M) {
 	//Tear up
-	InitMetrics(prometheus.NewRegistry())
+	initMetrics(prometheus.NewRegistry())
 
 	//Run tests
 	m.Run()
@@ -92,7 +94,7 @@ func Test_recordChannelBalance(t *testing.T) {
 		t.Logf("Running test: %v", tt.name)
 
 		t.Run(tt.name, func(t *testing.T) {
-			actualBalance, err := recordChannelBalance(tt.args.channel)
+			actualBalance, err := getChannelBalanceRatio(tt.args.channel)
 			//If we expect an error and we don't get one, fail
 			if tt.args.expectedError && err == nil {
 				t.Errorf("Error: %v", err)
@@ -105,3 +107,77 @@ func Test_recordChannelBalance(t *testing.T) {
 		})
 	}
 }
+
+func Test_manageChannelLiquidity(t *testing.T) {
+	type args struct {
+		channel             *lnrpc.Channel
+		channelBalanceRatio float64
+		channelRules        *[]nodeguard.LiquidityRule
+		swapClientClient    looprpc.SwapClientClient
+		nodeguardClient     nodeguard.NodeGuardServiceClient
+		loopProvider        *provider.LoopProvider
+	}
+
+	//gomock controller
+	mockCtrl := gomock.NewController(t)
+	
+
+	//Mock swap client
+	swapClient := provider.NewMockSwapClientClient(mockCtrl)
+
+	//Mock nodeguard client
+	
+
+	//Active channel
+	channelActive := &lnrpc.Channel{
+		Active:                true,
+		ChanId:                123,
+		Capacity:              1000,
+		LocalBalance:          100,
+		RemoteBalance:         900,
+	}
+
+	//Unactive channel
+	channelUnactive := &lnrpc.Channel{
+		Active:                false,
+		ChanId:                123,	
+		Capacity:              1000,
+		LocalBalance:          100,
+		RemoteBalance:         900,
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name:    "Manage channel liquidity test valid",
+			args:    args{
+				channel:             channelActive,
+				channelBalanceRatio: 0.1,
+				channelRules:        &[]nodeguard.LiquidityRule{
+					{
+						ChannelId:            123,
+						NodePubkey:           "",
+						WalletId:             1,
+						MinimumLocalBalance:  0.2,
+						MinimumRemoteBalance: 0.8,
+					},
+				},
+				swapClientClient:    mockSwapClient,
+				nodeguardClient:     mockNodeGuardClient,
+				loopProvider:        &provider.LoopProvider{},
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := manageChannelLiquidity(tt.args.channel, tt.args.channelBalanceRatio, tt.args.channelRules, tt.args.swapClientClient, tt.args.nodeguardClient, tt.args.loopProvider); (err != nil) != tt.wantErr {
+				t.Errorf("manageChannelLiquidity() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
