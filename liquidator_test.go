@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/Elenpay/liquidator/nodeguard"
@@ -120,30 +121,75 @@ func Test_manageChannelLiquidity(t *testing.T) {
 
 	//gomock controller
 	mockCtrl := gomock.NewController(t)
-	
 
 	//Mock swap client
-	swapClient := provider.NewMockSwapClientClient(mockCtrl)
+	mockSwapClient := provider.NewMockSwapClientClient(mockCtrl)
 
 	//Mock nodeguard client
-	
+	mockNodeGuardClient := nodeguard.NewMockNodeGuardServiceClient(mockCtrl)
+
+	//Mock LoopOutQuote
+	mockSwapClient.EXPECT().LoopOutQuote(gomock.Any(), gomock.Any()).Return(&looprpc.OutQuoteResponse{
+		SwapFeeSat:      0,
+		PrepayAmtSat:    0,
+		HtlcSweepFeeSat: 0,
+		SwapPaymentDest: []byte{},
+		CltvDelta:       0,
+		ConfTarget:      0,
+	}, nil).AnyTimes()
+
+	//Mock LoopInQuote
+	mockSwapClient.EXPECT().GetLoopInQuote(gomock.Any(), gomock.Any()).Return(&looprpc.InQuoteResponse{
+		SwapFeeSat:        0,
+		HtlcPublishFeeSat: 0,
+		CltvDelta:         0,
+		ConfTarget:        0,
+	}, nil).AnyTimes()
+	//Mock LoopIn
+
+	//Mock LoopOut
+	idBytes, err := hex.DecodeString("1234")
+	if err != nil {
+		t.Fatalf("Error decoding hex string: %v", err)
+	}
+
+	mockSwapClient.EXPECT().LoopOut(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
+		Id:               "",
+		IdBytes:          idBytes,
+		HtlcAddress:      "",
+		HtlcAddressP2Wsh: "",
+		HtlcAddressP2Tr:  "",
+		ServerMessage:    "",
+	}, nil).AnyTimes()
+
+	//Mock LoopIn
+	mockSwapClient.EXPECT().LoopIn(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
+		Id:               "",
+		IdBytes:          idBytes,
+		HtlcAddress:      "",
+		HtlcAddressP2Wsh: "bcrt1qjzekhf33knsrssvhgnad69sr656e9fx7qdfj9e",
+		HtlcAddressP2Tr:  "",
+		ServerMessage:    "",
+	}, nil).AnyTimes()
+
+	//Mock get new wallet address
+	mockNodeGuardClient.EXPECT().GetNewWalletAddress(gomock.Any(), gomock.Any()).Return(&nodeguard.GetNewWalletAddressResponse{
+		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
+	}, nil).AnyTimes()
+
+	//Mock request withdrawal
+	mockNodeGuardClient.EXPECT().RequestWithdrawal(gomock.Any(), gomock.Any()).Return(&nodeguard.RequestWithdrawalResponse{
+		Txid:        "bd0d500cc43b8c60769fd480170ace6660f2881d69bef475e03210f7f8e80c6f",
+		IsHotWallet: true,
+	}, nil).AnyTimes()
 
 	//Active channel
 	channelActive := &lnrpc.Channel{
-		Active:                true,
-		ChanId:                123,
-		Capacity:              1000,
-		LocalBalance:          100,
-		RemoteBalance:         900,
-	}
-
-	//Unactive channel
-	channelUnactive := &lnrpc.Channel{
-		Active:                false,
-		ChanId:                123,	
-		Capacity:              1000,
-		LocalBalance:          100,
-		RemoteBalance:         900,
+		Active:        true,
+		ChanId:        123,
+		Capacity:      1000,
+		LocalBalance:  100,
+		RemoteBalance: 900,
 	}
 
 	tests := []struct {
@@ -152,11 +198,11 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "Manage channel liquidity test valid",
-			args:    args{
+			name: "Manage channel liquidity test valid reverse swap",
+			args: args{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{
+				channelRules: &[]nodeguard.LiquidityRule{
 					{
 						ChannelId:            123,
 						NodePubkey:           "",
@@ -165,9 +211,29 @@ func Test_manageChannelLiquidity(t *testing.T) {
 						MinimumRemoteBalance: 0.8,
 					},
 				},
-				swapClientClient:    mockSwapClient,
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        &provider.LoopProvider{},
+				swapClientClient: mockSwapClient,
+				nodeguardClient:  mockNodeGuardClient,
+				loopProvider:     &provider.LoopProvider{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Manage channel liquidity test valid swap",
+			args: args{
+				channel:             channelActive,
+				channelBalanceRatio: 0.9,
+				channelRules: &[]nodeguard.LiquidityRule{
+					{
+						ChannelId:            123,
+						NodePubkey:           "",
+						WalletId:             1,
+						MinimumLocalBalance:  0.2,
+						MinimumRemoteBalance: 0.8,
+					},
+				},
+				swapClientClient: mockSwapClient,
+				nodeguardClient:  mockNodeGuardClient,
+				loopProvider:     &provider.LoopProvider{},
 			},
 			wantErr: false,
 		},
@@ -180,4 +246,3 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		})
 	}
 }
-

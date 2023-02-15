@@ -43,6 +43,12 @@ func (c *BigCache) SetLiquidityRules(nodePubkey string, rules []nodeguard.Liquid
 
 	log.Debugf("setting liquidity rules in cache: %+v", rules)
 
+	//Check if rules are empty
+	if len(rules) == 0 {
+		log.Debug("no liquidity rules to set in cache")
+		return nil
+	}
+
 	//Convert rules to bytes
 	rulesBytes, err := c.MarshalLiquidityRules(rules)
 	if err != nil {
@@ -52,7 +58,6 @@ func (c *BigCache) SetLiquidityRules(nodePubkey string, rules []nodeguard.Liquid
 
 	err = c.cache.Set(nodePubkey, rulesBytes)
 	if err != nil {
-		log.Errorf("error setting liquidity rules in cache: %s", err)
 		return err
 	}
 
@@ -61,17 +66,16 @@ func (c *BigCache) SetLiquidityRules(nodePubkey string, rules []nodeguard.Liquid
 
 func (c *BigCache) GetLiquidityRules(nodePubkey string) (map[uint64][]nodeguard.LiquidityRule, error) {
 
-	entry, err := c.cache.Get(nodePubkey)
-	if err != nil {
-		log.Errorf("error getting liquidity rules from cache: %s", err)
-		return nil, err
-	}
+	// entry, err := c.cache.Get(nodePubkey)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	//Convert bytes to rules
-	rules, err := c.UnmarshalLiquidityRules(entry)
-	if err != nil {
-		return nil, err
-	}
+	// //Convert bytes to rules
+	// rules, err := c.UnmarshalLiquidityRules(entry)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	//Convert rules to map
 	rulesMap := make(map[uint64][]nodeguard.LiquidityRule)

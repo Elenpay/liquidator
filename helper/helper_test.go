@@ -1,8 +1,9 @@
 package helper
 
 import (
-	"google.golang.org/grpc/metadata"
 	"testing"
+
+	"google.golang.org/grpc/metadata"
 )
 
 func TestGenerateContextWithMacaroon_Positive(t *testing.T) {
@@ -53,4 +54,38 @@ func TestGenerateContextWithMacaroon_Negative(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
+}
+
+func TestAbsInt64(t *testing.T) {
+	type args struct {
+		x int64
+	}
+	tests := []struct {
+		name string
+		args args
+		want int64
+	}{
+		{
+			name: "positive",
+			args: args{
+				x: 1,
+			},
+			want: 1,
+		},
+		{
+			name: "negative",
+			args: args{
+				x: -1,
+			},
+			want: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AbsInt64(tt.args.x); got != tt.want {
+				t.Errorf("AbsInt64() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

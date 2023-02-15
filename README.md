@@ -13,8 +13,10 @@ Flags:
   -h, --help                     help for liquidator
       --logFormat string         Log format from: {text, json} (default "text")
       --logLevel string          Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
+      --nodeguardHost string     Hostname:port to connect to nodeguard
       --nodesHosts string        Command separated list of hostname:port to connect to
-      --nodesMacaroons string    Command separated list of macaroons used in nodesHosts, in the same order of NODESHOSTS
+      --nodesLoopdHosts string   Command separated list of hostname:port to connect to loopd
+      --nodesMacaroons string    Command separated list of macaroons used in nodesHosts in hex, in the same order of NODESHOSTS
       --nodesTLSCerts string     Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS
       --pollingInterval string   Interval to poll data (default "15s")
 ```

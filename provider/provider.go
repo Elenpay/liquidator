@@ -21,6 +21,8 @@ type Provider interface {
 // Provider-agnostic request for a submarine swap
 type SubmarineSwapRequest struct {
 	SatsAmount int64
+	//Last hop node to identify which channel to use, if multiple channels are with this node then there is no way to know which one will be used
+	LastHopPubkey string
 }
 
 // Provider-agnostic response for a submarine swap

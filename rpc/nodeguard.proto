@@ -20,6 +20,7 @@ service NodeGuardService {
     Withdraws funds from a given wallet to a given address
     */
   rpc RequestWithdrawal(RequestWithdrawalRequest) returns (RequestWithdrawalResponse);
+  
 }
 
 message GetLiquidityRulesRequest {

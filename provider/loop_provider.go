@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"time"
 
-	"github.com/btcsuite/btcutil"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/loop/looprpc"
+	"github.com/lightningnetwork/lnd/routing/route"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,6 +20,12 @@ type LoopProvider struct {
 func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request SubmarineSwapRequest, client looprpc.SwapClientClient) (SubmarineSwapResponse, error) {
 
 	log.Infof("requesting submarine swap with amount: %d sats", request.SatsAmount)
+
+	//Check that no sub swap is already in progress
+	err := checkSubmarineSwapNotInProgress(ctx, client)
+	if err != nil {
+		return SubmarineSwapResponse{}, err
+	}
 
 	if request.SatsAmount <= 0 {
 		//Create error
@@ -31,8 +39,8 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 	//Do a quote for loop in
 	quote, err := client.GetLoopInQuote(ctx, &looprpc.QuoteRequest{
-		Amt:          request.SatsAmount,
-		ConfTarget:   1, //TODO Make this configurable
+		Amt: request.SatsAmount,
+		//ConfTarget:   1, //TODO Make this configurable
 		ExternalHtlc: true,
 		Private:      false,
 	})
@@ -50,15 +58,24 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	log.Debugf("loop in limits: %+v", limits)
 
 	//Use the client to request the swap
+	lastHopVertex, err := route.NewVertexFromStr(request.LastHopPubkey)
+	if err != nil {
+		return SubmarineSwapResponse{}, err
+	}
+
+	lastHopBytes := lastHopVertex[:]
+
 	resp, err := client.LoopIn(ctx, &looprpc.LoopInRequest{
 		Amt:            request.SatsAmount,
-		MaxMinerFee:    int64(limits.maxMinerFee), //TODO Make this configurable
-		MaxSwapFee:     int64(limits.maxSwapFee),  //TODO Make this configurable
+		MaxSwapFee:     int64(limits.maxSwapFee),
+		MaxMinerFee:    int64(limits.maxMinerFee),
+		LastHop:        lastHopBytes,
 		ExternalHtlc:   true,
-		HtlcConfTarget: 3, //TODO Make this configurable
+		HtlcConfTarget: 0,
 		Label:          fmt.Sprintf("Submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
 		Initiator:      "Liquidator",
 		Private:        false,
+		//TODO Review if hop hints are needed
 	})
 
 	if err != nil {
@@ -85,10 +102,81 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 }
 
+// Check that a Submarine Swap is not already in progress, by now the limit is one swap at a time for Swaps L1->L2
+func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient) error {
+
+	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
+	swaps, err := client.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	//Filter swaps of Loop In type
+	var loopInSwaps []*looprpc.SwapStatus
+	for _, swap := range swaps.Swaps {
+		if swap.Type == looprpc.SwapType_LOOP_IN {
+			loopInSwaps = append(loopInSwaps, swap)
+		}
+	}
+
+	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
+	for _, swap := range loopInSwaps {
+		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
+			//Create error
+			id := hex.EncodeToString(swap.GetIdBytes())
+			err := fmt.Errorf("another Submarine swap is already in progress, swap id: %s", id)
+			//Log error
+			log.Error(err)
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Function that checks that a reverse submarine swap is only one per this channelid
+func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient, request ReverseSubmarineSwapRequest) error {
+
+	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
+	swaps, err := client.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	//Filter swaps of Loop Out type
+	var loopOutSwaps []*looprpc.SwapStatus
+	for _, swap := range swaps.Swaps {
+		if swap.Type == looprpc.SwapType_LOOP_OUT && reflect.DeepEqual(swap.OutgoingChanSet, request.ChannelSet) {
+			loopOutSwaps = append(loopOutSwaps, swap)
+		}
+	}
+
+	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
+	for _, swap := range loopOutSwaps {
+		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
+			//Create error
+			id := hex.EncodeToString(swap.GetIdBytes())
+			err := fmt.Errorf("another Reverse Submarine swap is already in progress, swap id: %s", id)
+			//Log error
+			log.Error(err)
+
+			return err
+		}
+
+	}
+	return nil
+}
+
 // Reverse Submarine Swap L2->L1 based on loop (Loop Out)
 func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request ReverseSubmarineSwapRequest, client looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error) {
 
 	log.Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", request.SatsAmount, request.ReceiverBTCAddress)
+
+	//Check that no other swap is in progress
+	err := checkReverseSubmarineSwapNotInProgress(ctx, client, request)
 
 	if request.SatsAmount <= 0 {
 		//Create error
@@ -102,8 +190,8 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	//Do a quote for loop out
 	quote, err := client.LoopOutQuote(ctx, &looprpc.QuoteRequest{
-		Amt:          request.SatsAmount,
-		ConfTarget:   1, //TODO Make this configurable
+		Amt: request.SatsAmount,
+		//ConfTarget:   1, //TODO Make this configurable
 		ExternalHtlc: true,
 		Private:      false,
 	})
@@ -132,8 +220,8 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxPrepayRoutingFee:     int64(limits.maxPrepayRoutingFee),
 		MaxSwapRoutingFee:       int64(limits.maxSwapRoutingFee),
 		OutgoingChanSet:         request.ChannelSet,
-		SweepConfTarget:         1, //TODO Make this configurable
-		HtlcConfirmations:       1,
+		SweepConfTarget:         2, //TODO Make this configurable
+		HtlcConfirmations:       2,
 		SwapPublicationDeadline: uint64(time.Now().Unix()),
 		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
 		Initiator:               "Liquidator",

@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Generates the gRPC lightning client∏
@@ -27,11 +28,11 @@ func CreateLightningClient(nodeEndpoint string, tlsCertEncoded string) (lnrpc.Li
 }
 
 // Creates the SwapClient client similar to CreateLightningClient function
-func CreateSwapClientClient(nodeEndpoint string, tlsCertEncoded string) (looprpc.SwapClientClient, *grpc.ClientConn, error) {
+func CreateSwapClientClient(loopdEndpoint string, tlsCertEncoded string) (looprpc.SwapClientClient, *grpc.ClientConn, error) {
 
 	creds := generateCredentials(tlsCertEncoded)
 
-	conn, err := getConn(nodeEndpoint, creds)
+	conn, err := getConn(loopdEndpoint, creds)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,7 +47,7 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 
 	//TODO ADD TLS to NodeGuard API
 
-	conn, err := getConn(nodeGuardEndpoint, nil)
+	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials())
 	if err != nil {
 		return nil, nil, err
 	}

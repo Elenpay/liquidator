@@ -23,3 +23,11 @@ func GenerateContextWithMacaroon(macaroon string) (context.Context, error) {
 	return ctx, nil
 
 }
+
+// Write a function that returns the absolute value of a int64
+func AbsInt64(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}

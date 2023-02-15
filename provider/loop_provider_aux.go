@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/btcsuite/btcutil"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/loop/looprpc"
 )
 
