@@ -15,10 +15,10 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	//Mock lightning client GetLoopInQuote and LoopIn methods to return fake data
-	client := NewMockSwapClientClient(ctrl)
+	//Mock lightning swapClient GetLoopInQuote and LoopIn methods to return fake data
+	swapClient := NewMockSwapClientClient(ctrl)
 
-	client.EXPECT().GetLoopInQuote(gomock.Any(), gomock.Any()).Return(&looprpc.InQuoteResponse{
+	swapClient.EXPECT().GetLoopInQuote(gomock.Any(), gomock.Any()).Return(&looprpc.InQuoteResponse{
 		SwapFeeSat:        1,
 		HtlcPublishFeeSat: 1,
 		CltvDelta:         0,
@@ -30,7 +30,7 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 		t.Errorf("Error decoding hex string: %v", err)
 	}
 
-	client.EXPECT().LoopIn(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
+	swapClient.EXPECT().LoopIn(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
 		Id:               "",
 		IdBytes:          idBytes,
 		HtlcAddress:      "",
@@ -38,6 +38,31 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 		HtlcAddressP2Tr:  "",
 		ServerMessage:    "Test",
 	}, nil).Times(1)
+
+	//Mock ListSwaps to return fake data
+	swapClient.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+				Amt:              0,
+				Id:               "",
+				IdBytes:          idBytes,
+				Type:             0,
+				State:            0,
+				FailureReason:    0,
+				InitiationTime:   0,
+				LastUpdateTime:   0,
+				HtlcAddress:      "",
+				HtlcAddressP2Wsh: "",
+				HtlcAddressP2Tr:  "",
+				CostServer:       0,
+				CostOnchain:      0,
+				CostOffchain:     0,
+				LastHop:          []byte{},
+				OutgoingChanSet:  []uint64{},
+				Label:            "",
+			},
+		},
+	}, nil).AnyTimes()
 
 	type args struct {
 		ctx     context.Context
@@ -57,9 +82,10 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				request: SubmarineSwapRequest{
-					SatsAmount: 0,
+					SatsAmount:    0,
+					LastHopPubkey: "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 				},
-				client: nil,
+				client: swapClient,
 			},
 			want:    SubmarineSwapResponse{},
 			wantErr: true,
@@ -70,9 +96,10 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				request: SubmarineSwapRequest{
-					SatsAmount: -1,
+					SatsAmount:    -1,
+					LastHopPubkey: "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 				},
-				client: nil,
+				client: swapClient,
 			},
 			want:    SubmarineSwapResponse{},
 			wantErr: true,
@@ -83,9 +110,10 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				request: SubmarineSwapRequest{
-					SatsAmount: 100000000,
+					SatsAmount:    100000000,
+					LastHopPubkey: "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 				},
-				client: client,
+				client: swapClient,
 			},
 			want: SubmarineSwapResponse{
 				SwapId:            hex.EncodeToString(idBytes),
@@ -112,10 +140,10 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	//Mock lightning client GetLoopInQuote and LoopIn methods to return fake data
-	client := NewMockSwapClientClient(ctrl)
+	//Mock lightning swapClient GetLoopInQuote and LoopIn methods to return fake data
+	swapClient := NewMockSwapClientClient(ctrl)
 
-	client.EXPECT().LoopOutQuote(gomock.Any(), gomock.Any()).Return(&looprpc.OutQuoteResponse{
+	swapClient.EXPECT().LoopOutQuote(gomock.Any(), gomock.Any()).Return(&looprpc.OutQuoteResponse{
 		SwapFeeSat:      1,
 		PrepayAmtSat:    0,
 		HtlcSweepFeeSat: 0,
@@ -129,7 +157,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		t.Errorf("Error decoding hex string: %v", err)
 	}
 
-	client.EXPECT().LoopOut(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
+	swapClient.EXPECT().LoopOut(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
 		Id:               "",
 		IdBytes:          idBytes,
 		HtlcAddress:      "",
@@ -137,6 +165,32 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		HtlcAddressP2Tr:  "",
 		ServerMessage:    "Test",
 	}, nil).Times(1)
+
+	//Mock ListSwaps to return fake data
+
+	swapClient.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+				Amt:              0,
+				Id:               "",
+				IdBytes:          idBytes,
+				Type:             0,
+				State:            0,
+				FailureReason:    0,
+				InitiationTime:   0,
+				LastUpdateTime:   0,
+				HtlcAddress:      "",
+				HtlcAddressP2Wsh: "",
+				HtlcAddressP2Tr:  "",
+				CostServer:       0,
+				CostOnchain:      0,
+				CostOffchain:     0,
+				LastHop:          []byte{},
+				OutgoingChanSet:  []uint64{},
+				Label:            "",
+			},
+		},
+	}, nil).AnyTimes()
 
 	type args struct {
 		ctx     context.Context
@@ -158,7 +212,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 				request: ReverseSubmarineSwapRequest{
 					SatsAmount: 0,
 				},
-				client: nil,
+				client: swapClient,
 			},
 			want:    ReverseSubmarineSwapResponse{},
 			wantErr: true,
@@ -171,7 +225,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 				request: ReverseSubmarineSwapRequest{
 					SatsAmount: -1,
 				},
-				client: nil,
+				client: swapClient,
 			},
 			want:    ReverseSubmarineSwapResponse{},
 			wantErr: true,
@@ -186,7 +240,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 					SatsAmount:         100000000,
 					ChannelSet:         []uint64{},
 				},
-				client: client,
+				client: swapClient,
 			},
 			want: ReverseSubmarineSwapResponse{
 				SwapId: hex.EncodeToString(idBytes),
@@ -293,4 +347,175 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
+
+	//Swap client with ListSwaps returning a swap in progress
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	//Mock SwapInfo
+	swapClientWithOngoingSwaps := NewMockSwapClientClient(ctrl)
+	idBytes, err := hex.DecodeString("1234")
+	if err != nil {
+		t.Errorf("Error decoding hex string: %v", err)
+	}
+
+	swapClientWithOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+				Amt:              0,
+				Id:               "",
+				IdBytes:          idBytes,
+				Type:             looprpc.SwapType_LOOP_IN,
+				State:            looprpc.SwapState_INITIATED,
+				FailureReason:    0,
+				InitiationTime:   0,
+				LastUpdateTime:   0,
+				HtlcAddress:      "",
+				HtlcAddressP2Wsh: "",
+				HtlcAddressP2Tr:  "",
+				CostServer:       0,
+				CostOnchain:      0,
+				CostOffchain:     0,
+				LastHop:          []byte{},
+				OutgoingChanSet:  []uint64{},
+				Label:            "",
+			},
+		},
+	}, nil).AnyTimes()
+
+	//Swap client with ListSwaps returning no swaps
+	swapClientWithNoOngoingSwaps := NewMockSwapClientClient(ctrl)
+	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{},
+	}, nil).AnyTimes()
+
+	type args struct {
+		ctx    context.Context
+		client looprpc.SwapClientClient
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "checkSubmarineSwapNotInProgress_valid",
+			args: args{
+				ctx:    context.Background(),
+				client: swapClientWithNoOngoingSwaps,
+			},
+			wantErr: false,
+		},
+		{
+			name: "checkSubmarineSwapNotInProgress_ErrorOngoingSwap",
+			args: args{
+				ctx:    context.Background(),
+				client: swapClientWithOngoingSwaps,
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := checkSubmarineSwapNotInProgress(tt.args.ctx, tt.args.client); (err != nil) != tt.wantErr {
+				t.Errorf("checkSubmarineSwapNotInProgress() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// checkReverseSubmarineSwapNotInProgress
+func Test_checkReverseSubmarineSwapNotInProgress(t *testing.T) {
+
+	//Swap client with ListSwaps returning a swap in progress
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	channelSet := []uint64{1, 2, 3}
+
+	//Mock SwapInfo
+	swapClientWithOngoingSwaps := NewMockSwapClientClient(ctrl)
+	idBytes, err := hex.DecodeString("1234")
+	if err != nil {
+		t.Errorf("Error decoding hex string: %v", err)
+	}
+
+	swapClientWithOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+				Amt:              0,
+				Id:               "",
+				IdBytes:          idBytes,
+				Type:             looprpc.SwapType_LOOP_OUT,
+				State:            looprpc.SwapState_INITIATED,
+				FailureReason:    0,
+				InitiationTime:   0,
+				LastUpdateTime:   0,
+				HtlcAddress:      "",
+				HtlcAddressP2Wsh: "",
+				HtlcAddressP2Tr:  "",
+				CostServer:       0,
+				CostOnchain:      0,
+				CostOffchain:     0,
+				LastHop:          []byte{},
+				OutgoingChanSet:  channelSet,
+				Label:            "",
+			},
+		},
+	}, nil).AnyTimes()
+
+	//Swap client with ListSwaps returning no swaps
+	swapClientWithNoOngoingSwaps := NewMockSwapClientClient(ctrl)
+	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{},
+	}, nil).AnyTimes()
+
+	type args struct {
+		ctx     context.Context
+		client  looprpc.SwapClientClient
+		request ReverseSubmarineSwapRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "checkReverseSubmarineSwapNotInProgress_valid",
+			args: args{
+				ctx:    context.Background(),
+				client: swapClientWithNoOngoingSwaps,
+				request: ReverseSubmarineSwapRequest{
+					ReceiverBTCAddress: "",
+					SatsAmount:         0,
+					ChannelSet:         channelSet,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "checkReverseSubmarineSwapNotInProgress_ErrorOngoingSwap",
+			args: args{
+				ctx:    context.Background(),
+				client: swapClientWithOngoingSwaps,
+				request: ReverseSubmarineSwapRequest{
+					ReceiverBTCAddress: "",
+					SatsAmount:         0,
+					ChannelSet:         channelSet,
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := checkReverseSubmarineSwapNotInProgress(tt.args.ctx, tt.args.client, tt.args.request); (err != nil) != tt.wantErr {
+				t.Errorf("checkReverseSubmarineSwapNotInProgress() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+
 }

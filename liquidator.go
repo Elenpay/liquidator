@@ -400,7 +400,7 @@ func manageChannelLiquidity(channel *lnrpc.Channel, channelBalanceRatio float64,
 
 			//Perform the swap
 			swapRequest := provider.SubmarineSwapRequest{
-				SatsAmount: swapAmount,
+				SatsAmount:    swapAmount,
 				LastHopPubkey: channel.RemotePubkey,
 			}
 
