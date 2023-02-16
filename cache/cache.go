@@ -66,22 +66,34 @@ func (c *BigCache) SetLiquidityRules(nodePubkey string, rules []nodeguard.Liquid
 
 func (c *BigCache) GetLiquidityRules(nodePubkey string) (map[uint64][]nodeguard.LiquidityRule, error) {
 
-	// entry, err := c.cache.Get(nodePubkey)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	entry, err := c.cache.Get(nodePubkey)
+	if err != nil {
+		return nil, err
+	}
 
-	// //Convert bytes to rules
-	// rules, err := c.UnmarshalLiquidityRules(entry)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	//Convert bytes to rules
+	rules, err := c.UnmarshalLiquidityRules(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO Hack REMOVE before pushing
+	//Add liquidity rule for this channelid 203409651204096
+	// rules := []nodeguard.LiquidityRule{
+	// 	{
+	// 		ChannelId:            203409651204096,
+	// 		NodePubkey:           "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
+	// 		WalletId:             1,
+	// 		MinimumLocalBalance:  0.2,
+	// 		MinimumRemoteBalance: 0.8,
+	// 	}}
 
 	//Convert rules to map
 	rulesMap := make(map[uint64][]nodeguard.LiquidityRule)
 	for _, rule := range rules {
 		rulesMap[rule.ChannelId] = append(rulesMap[rule.ChannelId], rule)
 	}
+
 	return rulesMap, nil
 }
 

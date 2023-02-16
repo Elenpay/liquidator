@@ -117,6 +117,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		swapClientClient    looprpc.SwapClientClient
 		nodeguardClient     nodeguard.NodeGuardServiceClient
 		loopProvider        *provider.LoopProvider
+		loopdMacaroon 		string
 	}
 
 	//gomock controller
@@ -145,7 +146,6 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		CltvDelta:         0,
 		ConfTarget:        0,
 	}, nil).AnyTimes()
-	//Mock LoopIn
 
 	//Mock LoopOut
 	idBytes, err := hex.DecodeString("1234")
@@ -183,6 +183,11 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		IsHotWallet: true,
 	}, nil).AnyTimes()
 
+	//Mock ListSwaps
+	mockSwapClient.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{},
+	}, nil).AnyTimes()
+
 	//Active channel
 	channelActive := &lnrpc.Channel{
 		Active:        true,
@@ -190,6 +195,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		Capacity:      1000,
 		LocalBalance:  100,
 		RemoteBalance: 900,
+		RemotePubkey: "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 	}
 
 	tests := []struct {
@@ -214,6 +220,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				swapClientClient: mockSwapClient,
 				nodeguardClient:  mockNodeGuardClient,
 				loopProvider:     &provider.LoopProvider{},
+				loopdMacaroon:   "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
 			},
 			wantErr: false,
 		},
@@ -225,7 +232,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				channelRules: &[]nodeguard.LiquidityRule{
 					{
 						ChannelId:            123,
-						NodePubkey:           "",
+						NodePubkey:           "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 						WalletId:             1,
 						MinimumLocalBalance:  0.2,
 						MinimumRemoteBalance: 0.8,
@@ -234,13 +241,14 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				swapClientClient: mockSwapClient,
 				nodeguardClient:  mockNodeGuardClient,
 				loopProvider:     &provider.LoopProvider{},
+				loopdMacaroon:   "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := manageChannelLiquidity(tt.args.channel, tt.args.channelBalanceRatio, tt.args.channelRules, tt.args.swapClientClient, tt.args.nodeguardClient, tt.args.loopProvider); (err != nil) != tt.wantErr {
+			if err := manageChannelLiquidity(tt.args.channel, tt.args.channelBalanceRatio, tt.args.channelRules, tt.args.swapClientClient, tt.args.nodeguardClient, tt.args.loopProvider, tt.args.loopdMacaroon); (err != nil) != tt.wantErr {
 				t.Errorf("manageChannelLiquidity() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
