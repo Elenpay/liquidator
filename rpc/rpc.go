@@ -3,6 +3,7 @@ package rpc
 import (
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/lightninglabs/loop/looprpc"
@@ -15,7 +16,10 @@ import (
 
 // Generates the gRPC lightning client∏
 func CreateLightningClient(nodeEndpoint string, tlsCertEncoded string) (lnrpc.LightningClient, *grpc.ClientConn, error) {
-	creds := generateCredentials(tlsCertEncoded)
+	creds, err := generateCredentials(tlsCertEncoded)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	conn, err := getConn(nodeEndpoint, creds)
 	if err != nil {
@@ -30,8 +34,10 @@ func CreateLightningClient(nodeEndpoint string, tlsCertEncoded string) (lnrpc.Li
 // Creates the SwapClient client similar to CreateLightningClient function
 func CreateSwapClientClient(loopdEndpoint string, tlsCertEncoded string) (looprpc.SwapClientClient, *grpc.ClientConn, error) {
 
-	creds := generateCredentials(tlsCertEncoded)
-
+	creds, err := generateCredentials(tlsCertEncoded)
+	if err != nil {
+		return nil, nil, err
+	}
 	conn, err := getConn(loopdEndpoint, creds)
 	if err != nil {
 		return nil, nil, err
@@ -70,24 +76,29 @@ func getConn(nodeEndpoint string, creds credentials.TransportCredentials) (*grpc
 }
 
 // Generates gRPC credentials for the clients
-func generateCredentials(tlsCertEncoded string) credentials.TransportCredentials {
+func generateCredentials(tlsCertEncoded string) (credentials.TransportCredentials, error) {
 	//Generate TLS credentials from directory
 	tlsCertDecoded, err := base64.StdEncoding.DecodeString(tlsCertEncoded)
 	if err != nil {
-		log.Fatalf("Failed to decode TLS cert: %v", err)
+
+		err := fmt.Errorf("Failed to decode TLS cert: %v", err)
+		log.Error(err)
+		return nil, err
 	}
 
 	cp := x509.NewCertPool()
 	if !cp.AppendCertsFromPEM(tlsCertDecoded) {
-		log.Fatalf("credentials: failed to append certificates")
+		err := fmt.Errorf("Failed to append certificates")
+		log.Error(err)
 	}
 
 	creds := credentials.NewClientTLSFromCert(cp, "")
 
 	if err != nil {
-		log.Fatalf("Failed to load credentials: %v", err)
+		log.Errorf("Failed to create ClientTLS from credentials %v", err)
+		return nil, err
 	}
 
-	return creds
+	return creds, nil
 
 }

@@ -344,6 +344,11 @@ func manageChannelLiquidity(channel *lnrpc.Channel, channelBalanceRatio float64,
 	//TODO Discuss support multiple rules per channel
 	rule := (*channelRules)[0]
 
+	//Divide all rule percents by 100 to get ratios
+	rule.MinimumLocalBalance = rule.MinimumLocalBalance / 100
+	rule.MinimumRemoteBalance = rule.MinimumRemoteBalance / 100
+	rule.RebalanceTarget = rule.RebalanceTarget / 100
+
 	// If rebalance taget is 0, the swap target balance is the average of the minimum local and remote balance
 
 	swapTargetRatio := (rule.MinimumRemoteBalance + rule.MinimumLocalBalance) / 2 // Average of the minimum local and remote balance
@@ -395,8 +400,6 @@ func manageChannelLiquidity(channel *lnrpc.Channel, channelBalanceRatio float64,
 
 			log.Infof("reverse swap performed for channel %v, swap id: %v", channel.GetChanId(), resp.SwapId)
 
-			//TODO Monitor the swap status and lock future swaps if the swap is pending until it is completed/failed
-
 		}
 	case channelBalanceRatio > float64(rule.MinimumRemoteBalance):
 		//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
@@ -444,8 +447,6 @@ func manageChannelLiquidity(channel *lnrpc.Channel, channelBalanceRatio float64,
 			} else {
 				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v", rule.GetWalletId(), resp.SwapId)
 			}
-
-			//TODO Monitor the swap status and lock future swaps if the swap is pending until it is completed/failed
 
 		}
 
