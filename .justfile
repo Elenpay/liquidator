@@ -11,7 +11,8 @@ test:
 run *args='': build
     go run . $@
 install-loopd-loop:
-    cd loop && go install . 
+    cd loop/cmd/loop && go install .
+    cd loop/cmd/loopd && go install .
 compile-lnrpc-proto:
     rm -rf ./github.com/lightningnetwork/lnd && protoc -I lnd/lnrpc --go_out=. --go-grpc_out=.  lnd/lnrpc/*.proto && cd ./github.com/lightningnetwork/lnd/lnrpc && go mod init lnrpc
 compile-nodeguard-proto:
