@@ -13,9 +13,11 @@ Flags:
   -h, --help                     help for liquidator
       --logFormat string         Log format from: {text, json} (default "text")
       --logLevel string          Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
+      --loopdHosts string        Command separated list of hostname:port to connect to loopd, each position corresponds to the managed node in nodesHosts
+      --loopdMacaroons string    Command separated list of macaroons used in loopdHosts in hex, in the same order of loopdHosts
+      --loopdTLSCerts string     Command separated list of tls certs from loopd in base64, in the same order of loopdHosts and loopdMacaroons
       --nodeguardHost string     Hostname:port to connect to nodeguard
       --nodesHosts string        Command separated list of hostname:port to connect to
-      --nodesLoopdHosts string   Command separated list of hostname:port to connect to loopd
       --nodesMacaroons string    Command separated list of macaroons used in nodesHosts in hex, in the same order of NODESHOSTS
       --nodesTLSCerts string     Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS
       --pollingInterval string   Interval to poll data (default "15s")
@@ -26,18 +28,23 @@ This project uses [just](https://github.com/casey/just) with the following recip
 Available recipes:
     build
     build-loopserver arg=''
-    compile-proto
+    compile-lnrpc-proto
+    compile-loop-proto
+    compile-nodeguard-proto
     cover-test
+    fmt
     init-submodules
     install-loopd-loop
     loop *args=''
     loopin sats='1000000'
     loopout chanid sats='500000'
-    run
+    mine
+    run *args=''
     start-all
     start-loopd-carol
     start-loopserver
     test
+    unzip-loopd-datadir
 ```
 
 
@@ -57,19 +64,23 @@ just test
 
 ## Setup loop/loopd/loopserver regtest environment
 1. Make sure your regtest.polar.zip network in polar is running
-2. Get git submodules
+2. Unzip loopd datadir
+````
+just unzip-loopd-datadir
+````
+3. Get git submodules
 ````
 just init-submodules
 ````
-3. Compile and install loopd/loop binaries (Make sure your golang install bin dir is reachable from your PATH)
+1. Compile and install loopd/loop binaries (Make sure your golang install bin dir is reachable from your PATH)
 ````
 just install-loopd-loop
 ````
-4. Using just, run the following command:
+1. Using just, run the following command:
 ````
 just start-all
 ````
-5. This comand should have build a `loopserver `docker image, and started a `loopserver` container along with loopd as a native binary.
+1. This comand should have build a `loopserver `docker image, and started a `loopserver` container along with loopd as a native binary.
 
 ## Loop just recipes
 There are a few recipes using `just -l` to interact with loopd for loop in, loop out and calling loop CLI with args (`just loop <args>`).

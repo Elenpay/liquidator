@@ -344,8 +344,14 @@ func manageChannelLiquidity(channel *lnrpc.Channel, channelBalanceRatio float64,
 	//TODO Discuss support multiple rules per channel
 	rule := (*channelRules)[0]
 
-	//TODO Add some more logic to determine the swap amount properly
+	// If rebalance taget is 0, the swap target balance is the average of the minimum local and remote balance
+
 	swapTargetRatio := (rule.MinimumRemoteBalance + rule.MinimumLocalBalance) / 2 // Average of the minimum local and remote balance
+
+	// If rebalance target is > 0, the swap target balance is the rebalance target
+	if rule.RebalanceTarget > 0 {
+		swapTargetRatio = rule.RebalanceTarget
+	}
 
 	var swapTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
 

@@ -10,7 +10,7 @@ service NodeGuardService {
   Returns the liquidity rules associated to a node and its channels
   */
   rpc GetLiquidityRules(GetLiquidityRulesRequest) returns (GetLiquidityRulesResponse);
-      
+
   /*
   Returns a new unused BTC Address of a given wallet
   */
@@ -20,7 +20,6 @@ service NodeGuardService {
     Withdraws funds from a given wallet to a given address
     */
   rpc RequestWithdrawal(RequestWithdrawalRequest) returns (RequestWithdrawalResponse);
-  
 }
 
 message GetLiquidityRulesRequest {
@@ -37,6 +36,7 @@ message LiquidityRule {
   int32 wallet_id = 3;
   float minimum_local_balance = 4;
   float minimum_remote_balance = 5;
+  float rebalance_target = 6;
 }
 
 message GetNewWalletAddressRequest {
