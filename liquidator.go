@@ -173,7 +173,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 			NodePubkey: pubkey,
 		})
 
-		if liquidationRules == nil {
+		if liquidationRules == nil || len(liquidationRules.LiquidityRules) == 0 {
 			log.Warnf("no liquidation rules found for node %v", pubkey)
 			time.Sleep(10 * time.Second)
 			continue

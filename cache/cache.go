@@ -5,7 +5,6 @@ import (
 	//Log
 	"context"
 	"encoding/json"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	//Nodeguard
@@ -30,7 +29,23 @@ func NewCache() (Cache, error) {
 
 	log.Debug("creating new bigcache instance")
 
-	cache, _ := bigcache.New(context.Background(), bigcache.DefaultConfig(time.Second*0))
+	cache, _ := bigcache.New(context.Background(), bigcache.Config{
+		Shards:      1,
+		LifeWindow:  0,
+		CleanWindow: 0,
+		Verbose:     false,
+		OnRemove: func(key string, entry []byte) {
+			log.Debugf("removing key from cache: %s", key)
+		},
+		OnRemoveWithMetadata: func(key string, entry []byte, keyMetadata bigcache.Metadata) {
+			log.Debugf("removing key from cache: %s", key)
+
+		},
+		OnRemoveWithReason: func(key string, entry []byte, reason bigcache.RemoveReason) {
+			log.Debugf("removing key from cache: %s", key)
+		},
+		Logger: log.StandardLogger(),
+	})
 
 	return &BigCache{
 		cache: cache,
@@ -76,17 +91,6 @@ func (c *BigCache) GetLiquidityRules(nodePubkey string) (map[uint64][]nodeguard.
 	if err != nil {
 		return nil, err
 	}
-
-	//TODO Hack REMOVE before pushing
-	//Add liquidity rule for this channelid 203409651204096
-	// rules := []nodeguard.LiquidityRule{
-	// 	{
-	// 		ChannelId:            203409651204096,
-	// 		NodePubkey:           "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
-	// 		WalletId:             1,
-	// 		MinimumLocalBalance:  0.2,
-	// 		MinimumRemoteBalance: 0.8,
-	// 	}}
 
 	//Convert rules to map
 	rulesMap := make(map[uint64][]nodeguard.LiquidityRule)
