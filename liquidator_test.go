@@ -200,12 +200,12 @@ func Test_manageChannelLiquidity(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    args
+		args    ManageChannelLiquidityInfo
 		wantErr bool
 	}{
 		{
 			name: "Manage channel liquidity test valid reverse swap",
-			args: args{
+			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules: &[]nodeguard.LiquidityRule{
@@ -227,7 +227,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		},
 		{
 			name: "Manage channel liquidity test valid swap",
-			args: args{
+			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.9,
 				channelRules: &[]nodeguard.LiquidityRule{
@@ -250,7 +250,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := manageChannelLiquidity(tt.args.channel, tt.args.channelBalanceRatio, tt.args.channelRules, tt.args.swapClientClient, tt.args.nodeguardClient, tt.args.loopProvider, tt.args.loopdMacaroon); (err != nil) != tt.wantErr {
+			if err := manageChannelLiquidity(tt.args); (err != nil) != tt.wantErr {
 				t.Errorf("manageChannelLiquidity() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
