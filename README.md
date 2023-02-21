@@ -72,15 +72,15 @@ just unzip-loopd-datadir
 ````
 just init-submodules
 ````
-1. Compile and install loopd/loop binaries (Make sure your golang install bin dir is reachable from your PATH)
+4. Compile and install loopd/loop binaries (Make sure your golang install bin dir is reachable from your PATH)
 ````
 just install-loopd-loop
 ````
-1. Using just, run the following command:
+5. Using just, run the following command:
 ````
 just start-all
 ````
-1. This comand should have build a `loopserver `docker image, and started a `loopserver` container along with loopd as a native binary.
+6. This comand should have build a `loopserver `docker image, and started a `loopserver` container along with loopd as a native binary.
 
 ## Loop just recipes
 There are a few recipes using `just -l` to interact with loopd for loop in, loop out and calling loop CLI with args (`just loop <args>`).
