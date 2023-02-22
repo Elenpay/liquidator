@@ -46,7 +46,6 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	})
 
 	if err != nil {
-
 		log.Error(err)
 		return SubmarineSwapResponse{}, err
 	}

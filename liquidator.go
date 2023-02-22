@@ -397,6 +397,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 				nodeguardClient:  info.nodeguardClient,
 				loopProvider:     loopProvider,
 				loopdMacaroon:    info.loopdMacaroon,
+				nodeInfo:         info.nodeInfo,
 			})
 
 		}
@@ -429,6 +430,7 @@ func monitorChannel(info MonitorChannelInfo) {
 		nodeguardClient:     info.nodeguardClient,
 		loopProvider:        &info.loopProvider,
 		loopdMacaroon:       info.loopdMacaroon,
+		nodeInfo:            info.nodeInfo,
 	})
 
 	if err != nil {
@@ -500,7 +502,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(context.Background(), walletRequest)
 			if err != nil || addrResponse.GetAddress() == "" {
-				log.Errorf("error requesting nodeguard a new wallet address: %v", err)
+				log.Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
@@ -513,11 +515,11 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.Errorf("error performing reverse swap: %v", err)
+				log.Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
-			log.Infof("reverse swap performed for channel %v, swap id: %v", channel.GetChanId(), resp.SwapId)
+			log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
 
 		}
 	case info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
@@ -534,12 +536,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.Errorf("error performing swap: %v", err)
+				log.Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
 			if resp.InvoiceBTCAddress == "" {
-				err := fmt.Errorf("invoice BTC address is empty for swap id: %v", resp.SwapId)
+				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.Alias)
 				log.Errorf("error performing swap: %v", err)
 				return err
 			}
@@ -555,16 +557,16 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(context.Background(), &withdrawalRequest)
 			if err != nil {
-				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v", err)
+				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.Alias)
 				log.Errorf("error performing swap: %v", err)
 
 				return err
 			}
 
 			if withdrawalResponse.IsHotWallet {
-				log.Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v", rule.GetWalletId(), resp.SwapId)
+				log.Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
 			} else {
-				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v", rule.GetWalletId(), resp.SwapId)
+				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
 			}
 
 		}

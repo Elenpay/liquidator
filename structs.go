@@ -30,6 +30,7 @@ type MonitorChannelInfo struct {
 	nodeguardClient  nodeguard.NodeGuardServiceClient
 	loopProvider     provider.LoopProvider
 	loopdMacaroon    string
+	nodeInfo         lnrpc.GetInfoResponse
 }
 
 type ManageChannelLiquidityInfo struct {
@@ -40,4 +41,5 @@ type ManageChannelLiquidityInfo struct {
 	nodeguardClient     nodeguard.NodeGuardServiceClient
 	loopProvider        *provider.LoopProvider
 	loopdMacaroon       string
+	nodeInfo            lnrpc.GetInfoResponse
 }
