@@ -25,6 +25,12 @@ import (
 	"time"
 )
 
+const (
+	//OTEl Service name
+	OTELServiceName = "liquidator"
+
+)
+
 var (
 	nodesHosts      []string
 	nodesMacaroons  []string
@@ -34,6 +40,7 @@ var (
 	loopdHosts      []string
 	loopdMacaroons  []string
 	loopdTLSCerts   []string
+	
 )
 
 func main() {

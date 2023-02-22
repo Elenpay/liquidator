@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +21,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
+
+	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 var (
@@ -53,8 +66,74 @@ func initMetrics(reg prometheus.Registerer) {
 	prometheusMetrics = m
 }
 
+// newResource returns a resource describing this application.
+func newResource() *resource.Resource {
+	r, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(semconv.ServiceNameKey.String(OTELServiceName)),
+		resource.WithFromEnv(),
+	)
+	if err != nil {
+		log.Fatalf("Failed to detect environment resource: %v", err)
+	}
+
+	return r
+}
+
+func spanExporter() (*otlptrace.Exporter, error) {
+	var otlpEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if otlpEndpoint != "" {
+		log.Infof("exporting to OTLP collector at %s", otlpEndpoint)
+		traceClient := otlptracegrpc.NewClient(
+			otlptracegrpc.WithInsecure(),
+			otlptracegrpc.WithEndpoint(otlpEndpoint),
+		)
+		return otlptrace.New(context.Background(), traceClient)
+	}
+	return nil, errors.New("OTEL_EXPORTER_OTLP_ENDPOINT must not be empty")
+}
+
+// Init opentelemetry tracer
+func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
+
+	//TracerProvider
+	res := newResource()
+	tp := trace.NewTracerProvider(trace.WithResource(res))
+
+	// span exporter
+	exp, err := spanExporter()
+	if err != nil {
+		log.WithError(err).Fatal("failed to initialize Span exporter")
+	}
+
+	otel.SetTracerProvider(
+		trace.NewTracerProvider(
+			trace.WithSampler(trace.AlwaysSample()),
+			trace.WithResource(res),
+			trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
+		),
+	)
+
+	return tp, nil
+
+}
+
+// newExporter returns a console exporter.
+func newExporter(w io.Writer) (trace.SpanExporter, error) {
+	return stdouttrace.New(
+		stdouttrace.WithWriter(w),
+		// Use human-readable output.
+		stdouttrace.WithPrettyPrint(),
+		// Do not print timestamps for the demo.
+		stdouttrace.WithoutTimestamps(),
+	)
+}
+
 // Entrypoint of liquidator main logic
 func startLiquidator() {
+
+	//Init opentelemetry tracer
+	initTracer(context.TODO())
 
 	var wg = &sync.WaitGroup{}
 
@@ -210,14 +289,20 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 }
 
 // Record the channel balance in a prometheus gauge
-func getChannelBalanceRatio(channel *lnrpc.Channel) (float64, error) {
+func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (float64, error) {
+
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(spanCtx, "monitorChannel")
+	defer span.End()
 
 	capacity := float64(channel.GetCapacity())
 
 	if capacity <= 0 {
 
 		err := fmt.Errorf("channel capacity is <= 0")
-		log.Error(err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithContext(spanCtx).Error(err)
 		return -1, err
 	}
 
@@ -232,7 +317,9 @@ func getChannelBalanceRatio(channel *lnrpc.Channel) (float64, error) {
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
 
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
-		log.Error(err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithContext(spanCtx).Error(err)
 		return -1, err
 	}
 
@@ -323,7 +410,9 @@ func monitorChannel(info MonitorChannelInfo) {
 	channelBalanceRatio, err := getChannelBalanceRatio(info.channel)
 
 	if err != nil {
-		log.Errorf("error calculating channel balance: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithContext(spanCtx).Errorf("error calculating channel balance: %v", err)
 	}
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
@@ -343,7 +432,9 @@ func monitorChannel(info MonitorChannelInfo) {
 	})
 
 	if err != nil {
-		log.Errorf("error managing channel liquidity: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithContext(spanCtx).Errorf("error managing channel liquidity: %v", err)
 	}
 }
 
@@ -356,17 +447,17 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	//TODO Review if the following checks should return an error or not
 	if !channel.GetActive() {
-		log.Debugf("channel %v is inactive, skipping", channel.GetChanId())
+		log.WithContext(spanCtx).Debugf("channel %v is inactive, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) == 0 {
-		log.Debugf("no rules found for channel %v, skipping", channel.GetChanId())
+		log.WithContext(spanCtx).Debugf("no rules found for channel %v, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) > 1 {
-		log.Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
+		log.WithContext(spanCtx).Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
 	}
 
 	//TODO Discuss support multiple rules per channel
@@ -486,19 +577,26 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 // Record the channel balance in a prometheus gauge
 func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channelBalanceRatio float64, lightningClient lnrpc.LightningClient, context context.Context) {
+//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(context, "monitorChannel")
+	defer span.End()
 
 	channelId := fmt.Sprint(channel.GetChanId())
 
 	localNodeInfo, err := getInfo(&lightningClient, &context)
 
 	if err != nil {
-		log.Errorf("error getting local node info: %v", err)
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithContext(spanCtx).Errorf("error getting local node info: %v", err)
 	}
 
 	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
 
 	if err != nil {
-		log.Errorf("error getting remote node info: %v", err)
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithContext(spanCtx).Errorf("error getting remote node info: %v", err)
 
 	}
 

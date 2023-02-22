@@ -6,6 +6,11 @@ require (
 	github.com/btcsuite/btcd/btcutil v1.1.3
 	github.com/lightninglabs/loop v0.21.0-beta
 	github.com/lightningnetwork/lnd v0.15.5-beta.rc2
+	go.opentelemetry.io/otel v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.13.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.13.0
+	go.opentelemetry.io/otel/sdk v1.13.0
 	google.golang.org/grpc v1.53.0
 )
 
@@ -102,12 +107,8 @@ require (
 	go.etcd.io/etcd/raft/v3 v3.5.7 // indirect
 	go.etcd.io/etcd/server/v3 v3.5.7 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.39.0 // indirect
-	go.opentelemetry.io/otel v1.13.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.13.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.13.0 // indirect
 	go.opentelemetry.io/otel/metric v0.36.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.13.0 // indirect
 	go.opentelemetry.io/otel/trace v1.13.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
