@@ -28,7 +28,6 @@ import (
 const (
 	//OTEl Service name
 	OTELServiceName = "liquidator"
-
 )
 
 var (
@@ -40,7 +39,6 @@ var (
 	loopdHosts      []string
 	loopdMacaroons  []string
 	loopdTLSCerts   []string
-	
 )
 
 func main() {

@@ -9,10 +9,10 @@ import (
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 )
 
 // Generates the gRPC lightning client∏
@@ -67,8 +67,8 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 // generates the gRPC connection based on the node endpoint and the credentials
 func getConn(nodeEndpoint string, creds credentials.TransportCredentials) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(nodeEndpoint, grpc.WithTransportCredentials(creds),
-	 grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-	 grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()))
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()))
 
 	if err != nil {
 		log.Errorf("did not connect: %v", err)

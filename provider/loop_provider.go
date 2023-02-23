@@ -24,6 +24,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	//Check that no sub swap is already in progress
 	err := checkSubmarineSwapNotInProgress(ctx, client)
 	if err != nil {
+		log.WithError(err)
 		return SubmarineSwapResponse{}, err
 	}
 
@@ -125,8 +126,6 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 			//Create error
 			id := hex.EncodeToString(swap.GetIdBytes())
 			err := fmt.Errorf("another Submarine swap is already in progress, swap id: %s", id)
-			//Log error
-			log.Error(err)
 
 			return err
 		}
@@ -145,6 +144,11 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 		return err
 	}
 
+	//If there are no swaps, return nil
+	if len(swaps.Swaps) == 0 {
+		return nil
+	}
+
 	//Filter swaps of Loop Out type
 	var loopOutSwaps []*looprpc.SwapStatus
 	for _, swap := range swaps.Swaps {
@@ -159,8 +163,6 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 			//Create error
 			id := hex.EncodeToString(swap.GetIdBytes())
 			err := fmt.Errorf("another Reverse Submarine swap is already in progress, swap id: %s", id)
-			//Log error
-			log.Error(err)
 
 			return err
 		}
@@ -176,6 +178,10 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	//Check that no other swap is in progress
 	err := checkReverseSubmarineSwapNotInProgress(ctx, client, request)
+	if err != nil {
+		log.WithError(err)
+		return ReverseSubmarineSwapResponse{}, err
+	}
 
 	if request.SatsAmount <= 0 {
 		//Create error

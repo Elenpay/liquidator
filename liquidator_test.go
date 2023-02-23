@@ -1,6 +1,7 @@
 package main
 
 import (
+	context "context"
 	"encoding/hex"
 	"testing"
 
@@ -95,7 +96,7 @@ func Test_recordChannelBalance(t *testing.T) {
 		t.Logf("Running test: %v", tt.name)
 
 		t.Run(tt.name, func(t *testing.T) {
-			actualBalance, err := getChannelBalanceRatio(tt.args.channel)
+			actualBalance, err := getChannelBalanceRatio(tt.args.channel, context.TODO())
 			//If we expect an error and we don't get one, fail
 			if tt.args.expectedError && err == nil {
 				t.Errorf("Error: %v", err)
@@ -110,15 +111,6 @@ func Test_recordChannelBalance(t *testing.T) {
 }
 
 func Test_manageChannelLiquidity(t *testing.T) {
-	type args struct {
-		channel             *lnrpc.Channel
-		channelBalanceRatio float64
-		channelRules        *[]nodeguard.LiquidityRule
-		swapClientClient    looprpc.SwapClientClient
-		nodeguardClient     nodeguard.NodeGuardServiceClient
-		loopProvider        *provider.LoopProvider
-		loopdMacaroon       string
-	}
 
 	//gomock controller
 	mockCtrl := gomock.NewController(t)
@@ -198,6 +190,10 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		RemotePubkey:  "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
 	}
 
+	nodeInfo := lnrpc.GetInfoResponse{
+		Alias: "Test",
+	}
+
 	tests := []struct {
 		name    string
 		args    ManageChannelLiquidityInfo
@@ -208,20 +204,13 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules: &[]nodeguard.LiquidityRule{
-					{
-						ChannelId:            123,
-						NodePubkey:           "",
-						WalletId:             1,
-						MinimumLocalBalance:  20,
-						MinimumRemoteBalance: 80,
-						RebalanceTarget:      60,
-					},
-				},
-				swapClientClient: mockSwapClient,
-				nodeguardClient:  mockNodeGuardClient,
-				loopProvider:     &provider.LoopProvider{},
-				loopdMacaroon:    "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				swapClientClient:    mockSwapClient,
+				nodeguardClient:     mockNodeGuardClient,
+				loopProvider:        &provider.LoopProvider{},
+				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				nodeInfo:            nodeInfo,
+				ctx:                 context.TODO(),
 			},
 			wantErr: false,
 		},
@@ -244,6 +233,8 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				nodeguardClient:  mockNodeGuardClient,
 				loopProvider:     &provider.LoopProvider{},
 				loopdMacaroon:    "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				nodeInfo:         nodeInfo,
+				ctx:              context.TODO(),
 			},
 			wantErr: false,
 		},

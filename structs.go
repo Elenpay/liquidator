@@ -42,4 +42,5 @@ type ManageChannelLiquidityInfo struct {
 	loopProvider        *provider.LoopProvider
 	loopdMacaroon       string
 	nodeInfo            lnrpc.GetInfoResponse
+	ctx                 context.Context
 }

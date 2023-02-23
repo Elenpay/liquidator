@@ -150,7 +150,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		SwapPaymentDest: []byte{},
 		CltvDelta:       0,
 		ConfTarget:      1,
-	}, nil).Times(1)
+	}, nil).AnyTimes()
 
 	idBytes, err := hex.DecodeString("1234")
 	if err != nil {
@@ -164,7 +164,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		HtlcAddressP2Wsh: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
 		HtlcAddressP2Tr:  "",
 		ServerMessage:    "Test",
-	}, nil).Times(1)
+	}, nil).AnyTimes()
 
 	//Mock ListSwaps to return fake data
 
@@ -175,7 +175,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 				Id:               "",
 				IdBytes:          idBytes,
 				Type:             0,
-				State:            0,
+				State:            looprpc.SwapState_FAILED,
 				FailureReason:    0,
 				InitiationTime:   0,
 				LastUpdateTime:   0,

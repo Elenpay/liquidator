@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -26,7 +25,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 
@@ -118,17 +116,6 @@ func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
 
 }
 
-// newExporter returns a console exporter.
-func newExporter(w io.Writer) (trace.SpanExporter, error) {
-	return stdouttrace.New(
-		stdouttrace.WithWriter(w),
-		// Use human-readable output.
-		stdouttrace.WithPrettyPrint(),
-		// Do not print timestamps for the demo.
-		stdouttrace.WithoutTimestamps(),
-	)
-}
-
 // Entrypoint of liquidator main logic
 func startLiquidator() {
 
@@ -205,7 +192,7 @@ func startLiquidator() {
 			log.Fatalf("no macaroon provided for node %v", nodeEndpoint)
 		}
 
-		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon)
+		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon, context.Background())
 		if err != nil {
 			log.Fatal("failed to generate context with macaroon")
 		}
@@ -219,7 +206,7 @@ func startLiquidator() {
 		}
 
 		//Get the local node info
-		nodeInfo, err := getLocalNodeInfo(&lightningClient, nodeContext)
+		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeContext)
 		if err != nil {
 			log.Fatalf("failed to get local node info: %v", err)
 		}
@@ -227,12 +214,12 @@ func startLiquidator() {
 		wg.Add(1)
 
 		//Start a goroutine to poll nodeguard for liquidation rules for this node
-		go startNodeGuardPolling(*nodeInfo, nodeguardClient, nodeContext)
+		go startNodeGuardPolling(nodeInfo, nodeguardClient, nodeContext)
 
 		//Start a goroutine to monitor the channels of the node
 		go monitorChannels(MonitorChannelsInfo{
 			nodeHost:        nodeEndpoint,
-			nodeInfo:        *nodeInfo,
+			nodeInfo:        nodeInfo,
 			nodeMacaroon:    nodeMacaroon,
 			loopdMacaroon:   loopdMacaroon,
 			lightningClient: lightningClient,
@@ -292,7 +279,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (float64, error) {
 
 	//Start span
-	spanCtx, span := otel.Tracer("monitorChannel").Start(spanCtx, "monitorChannel")
+	spanCtx, span := otel.Tracer("monitorChannel").Start(spanCtx, "getChannelBalanceRatio")
 	defer span.End()
 
 	capacity := float64(channel.GetCapacity())
@@ -407,8 +394,17 @@ func monitorChannels(info MonitorChannelsInfo) {
 }
 
 func monitorChannel(info MonitorChannelInfo) {
+
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(info.context, "monitorChannel")
+	defer span.End()
+
+	//Add atrributes to span
+	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.Int64("channelId", int64(info.channel.GetChanId())))
+
+	log.Debugf("monitorChannel SpanId: %v TraceId: %v", span.SpanContext().SpanID().String(), span.SpanContext().TraceID().String())
 	//Record the channel balance in a prometheus gauge
-	channelBalanceRatio, err := getChannelBalanceRatio(info.channel)
+	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 
 	if err != nil {
 		span.RecordError(err)
@@ -417,7 +413,7 @@ func monitorChannel(info MonitorChannelInfo) {
 	}
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
-	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, info.context)
+	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, spanCtx)
 
 	channelRules := info.liquidationRules[info.channel.GetChanId()]
 
@@ -431,6 +427,7 @@ func monitorChannel(info MonitorChannelInfo) {
 		loopProvider:        &info.loopProvider,
 		loopdMacaroon:       info.loopdMacaroon,
 		nodeInfo:            info.nodeInfo,
+		ctx:                 spanCtx,
 	})
 
 	if err != nil {
@@ -442,6 +439,10 @@ func monitorChannel(info MonitorChannelInfo) {
 
 // Manage channel liquidity and perform swaps if necessary
 func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
+
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(info.ctx, "manageChannelLiquidity")
+	defer span.End()
 
 	//Check if channel is active
 	channel := info.channel
@@ -481,7 +482,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	var swapTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
 
-	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon)
+	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon, info.ctx)
 	if err != nil {
 		return err
 	}
@@ -500,7 +501,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				WalletId: rule.WalletId,
 			}
 
-			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(context.Background(), walletRequest)
+			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
 			if err != nil || addrResponse.GetAddress() == "" {
 				log.Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
@@ -555,7 +556,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				Description: fmt.Sprintf("Swap %v", resp.SwapId),
 			}
 
-			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(context.Background(), &withdrawalRequest)
+			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
 			if err != nil {
 				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.Alias)
 				log.Errorf("error performing swap: %v", err)
@@ -579,13 +580,13 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 // Record the channel balance in a prometheus gauge
 func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channelBalanceRatio float64, lightningClient lnrpc.LightningClient, context context.Context) {
-//Start span
-	spanCtx, span := otel.Tracer("monitorChannel").Start(context, "monitorChannel")
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(context, "recordChannelBalanceMetric")
 	defer span.End()
 
 	channelId := fmt.Sprint(channel.GetChanId())
 
-	localNodeInfo, err := getInfo(&lightningClient, &context)
+	localNodeInfo, err := getInfo(lightningClient, context)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -593,7 +594,7 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 		log.WithContext(spanCtx).Errorf("error getting local node info: %v", err)
 	}
 
-	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
+	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, lightningClient, context)
 
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -622,35 +623,35 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 }
 
 // Gets the info from the node which we have the macaroon
-func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.GetInfoResponse, error) {
+func getInfo(lightningClient lnrpc.LightningClient, context context.Context) (lnrpc.GetInfoResponse, error) {
 
 	//Call GetInfo method of lightning client
-	response, err := (*lightningClient).GetInfo(*context, &lnrpc.GetInfoRequest{})
+	response, err := lightningClient.GetInfo(context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
 		log.Errorf("error getting info: %v", err)
-		return nil, err
+		return lnrpc.GetInfoResponse{}, err
 	}
 
-	return response, nil
+	return *response, nil
 }
 
 // Gets the info from the node which we have the macaroon
-func getLocalNodeInfo(lightningClient *lnrpc.LightningClient, context context.Context) (*lnrpc.GetInfoResponse, error) {
+func getLocalNodeInfo(lightningClient lnrpc.LightningClient, context context.Context) (lnrpc.GetInfoResponse, error) {
 
 	//Call GetInfo method of lightning client
-	response, err := (*lightningClient).GetInfo(context, &lnrpc.GetInfoRequest{})
+	response, err := lightningClient.GetInfo(context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
 		log.Errorf("error getting info: %v", err)
-		return nil, err
+		return lnrpc.GetInfoResponse{}, err
 	}
 
-	return response, nil
+	return *response, nil
 }
 
 // Gets the info from the node with the given pubkey
-func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.NodeInfo, error) {
+func getNodeInfo(pubkey string, lightningClient lnrpc.LightningClient, context context.Context) (*lnrpc.NodeInfo, error) {
 
 	if pubkey == "" {
 		err := fmt.Errorf("pubkey is empty")
@@ -660,7 +661,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 	}
 
 	//Call GetNodeInfo method of lightning client with metadata headers
-	response, err := (*lightningClient).GetNodeInfo(*context, &lnrpc.NodeInfoRequest{
+	response, err := (lightningClient).GetNodeInfo(context, &lnrpc.NodeInfoRequest{
 		PubKey: pubkey,
 	})
 

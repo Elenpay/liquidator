@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"testing"
 
 	"google.golang.org/grpc/metadata"
@@ -11,7 +12,7 @@ func TestGenerateContextWithMacaroon_Positive(t *testing.T) {
 	//Arrange
 	macaroon := "test"
 	//Act
-	ctx, err := GenerateContextWithMacaroon(macaroon)
+	ctx, err := GenerateContextWithMacaroon(macaroon, context.TODO())
 
 	//Assert
 
@@ -45,7 +46,7 @@ func TestGenerateContextWithMacaroon_Negative(t *testing.T) {
 	//Arrange
 	macaroon := ""
 	//Act
-	_, err := GenerateContextWithMacaroon(macaroon)
+	_, err := GenerateContextWithMacaroon(macaroon, context.TODO())
 
 	//Assert
 
