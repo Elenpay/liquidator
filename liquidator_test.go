@@ -2,7 +2,6 @@ package main
 
 import (
 	context "context"
-	"encoding/hex"
 	"testing"
 
 	"github.com/Elenpay/liquidator/nodeguard"
@@ -23,37 +22,6 @@ func TestMain(m *testing.M) {
 
 	//Tear down
 }
-
-// func Test_monitorChannels(t *testing.T) {
-
-// 	//Arrange
-// 	mockCtrl := gomock.NewController(t)
-// 	defer mockCtrl.Finish()
-// 	mockLightningClient := NewMockLightningClient(mockCtrl)
-// 	mockLightningClient.EXPECT().ListChannels(gomock.Any(), gomock.Any()).Return(&lnrpc.ListChannelsResponse{
-// 		Channels: []*lnrpc.Channel{
-// 			{
-// 				ChanId:        1,
-// 				LocalBalance:  100,
-// 				RemoteBalance: 900,
-// 				Capacity:      1000,
-// 			},
-// 		},
-// 	}, nil)
-
-// 	//Act
-
-// 	monitorChannels("localhost:5001", "macaroon", mockLightningClient, context.TODO())
-
-// 	//Assert
-
-// 	//Assert that the local balance is 100/900
-
-// 	// metric := prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{"channel_id": "1"})
-
-// 	// t.Log(metric)
-
-// }
 
 func Test_recordChannelBalance(t *testing.T) {
 	type args struct {
@@ -112,70 +80,46 @@ func Test_recordChannelBalance(t *testing.T) {
 
 func Test_manageChannelLiquidity(t *testing.T) {
 
-	
 	//gomock controller
 	mockCtrl := gomock.NewController(t)
-
-	//Mock swap client
-	mockSwapClient := provider.NewMockSwapClientClient(mockCtrl)
 
 	//Mock nodeguard client
 	mockNodeGuardClient := nodeguard.NewMockNodeGuardServiceClient(mockCtrl)
 
-	//Mock LoopOutQuote
-	mockSwapClient.EXPECT().LoopOutQuote(gomock.Any(), gomock.Any()).Return(&looprpc.OutQuoteResponse{
-		SwapFeeSat:      0,
-		PrepayAmtSat:    0,
-		HtlcSweepFeeSat: 0,
-		SwapPaymentDest: []byte{},
-		CltvDelta:       0,
-		ConfTarget:      0,
+	//Mock provider
+	mockProvider := provider.NewMockProvider(mockCtrl)
+
+	//Mock RequestReverseSubmarineSwap
+	mockProvider.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.ReverseSubmarineSwapResponse{
+		SwapId: "1234",
 	}, nil).AnyTimes()
 
-	//Mock LoopInQuote
-	mockSwapClient.EXPECT().GetLoopInQuote(gomock.Any(), gomock.Any()).Return(&looprpc.InQuoteResponse{
-		SwapFeeSat:        0,
-		HtlcPublishFeeSat: 0,
-		CltvDelta:         0,
-		ConfTarget:        0,
+	//Mock RequestSubmarineSwap
+	mockProvider.EXPECT().RequestSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.SubmarineSwapResponse{
+		SwapId:            "1234",
+		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
 
-	//Mock LoopOut
-	idBytes, err := hex.DecodeString("1234")
-	if err != nil {
-		t.Fatalf("Error decoding hex string: %v", err)
-	}
-
-	mockSwapClient.EXPECT().LoopOut(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
+	//MockRequestSubmarineSwap
+	mockProvider.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
+		Amt:              0,
 		Id:               "",
-		IdBytes:          idBytes,
+		IdBytes:          []byte{},
+		Type:             0,
+		State:            looprpc.SwapState_SUCCESS,
+		FailureReason:    0,
+		InitiationTime:   0,
+		LastUpdateTime:   0,
 		HtlcAddress:      "",
 		HtlcAddressP2Wsh: "",
 		HtlcAddressP2Tr:  "",
-		ServerMessage:    "",
+		CostServer:       0,
+		CostOnchain:      0,
+		CostOffchain:     0,
+		LastHop:          []byte{},
+		OutgoingChanSet:  []uint64{},
+		Label:            "",
 	}, nil).AnyTimes()
-
-	//Mock LoopIn
-	mockSwapClient.EXPECT().LoopIn(gomock.Any(), gomock.Any()).Return(&looprpc.SwapResponse{
-		Id:               "",
-		IdBytes:          idBytes,
-		HtlcAddress:      "",
-		HtlcAddressP2Wsh: "bcrt1qjzekhf33knsrssvhgnad69sr656e9fx7qdfj9e",
-		HtlcAddressP2Tr:  "",
-		ServerMessage:    "",
-	}, nil).AnyTimes()
-
-	//Mock Monitor
-	mockMonitorClient := provider.NewMockSwapClient_MonitorClient(mockCtrl)
-
-	swapStatus := &looprpc.SwapStatus{
-		State:   looprpc.SwapState_SUCCESS,
-		IdBytes: idBytes,
-	}
-
-	mockMonitorClient.EXPECT().Recv().Return(swapStatus, nil).AnyTimes()
-
-	mockSwapClient.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
 
 	//Mock get new wallet address
 	mockNodeGuardClient.EXPECT().GetNewWalletAddress(gomock.Any(), gomock.Any()).Return(&nodeguard.GetNewWalletAddressResponse{
@@ -185,11 +129,6 @@ func Test_manageChannelLiquidity(t *testing.T) {
 	mockNodeGuardClient.EXPECT().RequestWithdrawal(gomock.Any(), gomock.Any()).Return(&nodeguard.RequestWithdrawalResponse{
 		Txid:        "bd0d500cc43b8c60769fd480170ace6660f2881d69bef475e03210f7f8e80c6f",
 		IsHotWallet: true,
-	}, nil).AnyTimes()
-
-	//Mock ListSwaps
-	mockSwapClient.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{},
 	}, nil).AnyTimes()
 
 	//Active channel
@@ -217,9 +156,8 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				swapClientClient:    mockSwapClient,
 				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        &provider.LoopProvider{},
+				loopProvider:        mockProvider,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
 				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
@@ -241,12 +179,11 @@ func Test_manageChannelLiquidity(t *testing.T) {
 						RebalanceTarget:      60,
 					},
 				},
-				swapClientClient: mockSwapClient,
-				nodeguardClient:  mockNodeGuardClient,
-				loopProvider:     &provider.LoopProvider{},
-				loopdMacaroon:    "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:         nodeInfo,
-				ctx:              context.TODO(),
+				nodeguardClient: mockNodeGuardClient,
+				loopProvider:    mockProvider,
+				loopdMacaroon:   "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				nodeInfo:        nodeInfo,
+				ctx:             context.TODO(),
 			},
 			wantErr: false,
 		},
