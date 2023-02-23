@@ -1,9 +1,11 @@
 package provider
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 
@@ -24,7 +26,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	//Check that no sub swap is already in progress
 	err := checkSubmarineSwapNotInProgress(ctx, client)
 	if err != nil {
-		log.WithError(err)
+		log.Error(err)
 		return SubmarineSwapResponse{}, err
 	}
 
@@ -179,7 +181,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	//Check that no other swap is in progress
 	err := checkReverseSubmarineSwapNotInProgress(ctx, client, request)
 	if err != nil {
-		log.WithError(err)
+		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
 
@@ -256,7 +258,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 }
 
 // Get the status of a swap by invoking SwapInfo method from the client
-func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client looprpc.SwapClientClient) (*looprpc.SwapStatus, error) {
+func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
 
 	log.Infof("getting swap status for swapId: %s", swapId)
 
@@ -266,7 +268,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 		//Log error
 		log.Error(err)
 
-		return &looprpc.SwapStatus{}, err
+		return looprpc.SwapStatus{}, err
 	}
 
 	//Decode swapId from hex string to bytes
@@ -275,7 +277,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	if err != nil {
 		//Log error
 		log.Errorf("error decoding swapId: %s", err)
-		return &looprpc.SwapStatus{}, err
+		return looprpc.SwapStatus{}, err
 	}
 
 	//Get swap info
@@ -286,7 +288,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	if err != nil {
 		//Log error
 		log.Errorf("error getting swap info: %s", err)
-		return &looprpc.SwapStatus{}, err
+		return looprpc.SwapStatus{}, err
 	}
 
 	//Log response
@@ -295,6 +297,68 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	//Log success
 	log.Infof("swap status for swapId: %s is %s", swapId, swapInfo.State.String())
 
-	return swapInfo, nil
+	return *swapInfo, nil
+
+}
+
+// Monitor a swap status changes and stops when the swap is completed or failed
+func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClient looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
+
+	if swapId == "" {
+		err := fmt.Errorf("swapId is empty")
+		log.Error(err)
+		return looprpc.SwapStatus{}, err
+	}
+
+	//Decode swapId from hex string to bytes
+	monitoredSwapIdBytes, err := hex.DecodeString(swapId)
+	if err != nil {
+		//Log error
+		log.Errorf("error decoding swapId: %s", err)
+		return looprpc.SwapStatus{}, err
+	}
+
+	//Monitor swap using swap client and process the stream of events
+
+	//Create a stream
+
+	stream, err := swapClient.Monitor(
+		ctx, &looprpc.MonitorRequest{})
+	if err != nil {
+		return looprpc.SwapStatus{}, err
+	}
+
+	var response looprpc.SwapStatus
+
+	for {
+		swap, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				log.Debugf("Swap monitor stream closed")
+				//TODO Review this if necessary at all
+				response = *swap
+				break
+			}
+
+			log.Error(err)
+
+			return looprpc.SwapStatus{}, err
+
+		}
+
+		//Check if swap id matches
+		if bytes.Equal(monitoredSwapIdBytes, swap.IdBytes) {
+
+			log.Debugf("swap with id %v status: %v", hex.EncodeToString(monitoredSwapIdBytes), swap.GetState().String())
+
+			//Break if the swap is success or failure
+			if swap.State == looprpc.SwapState_SUCCESS || swap.State == looprpc.SwapState_FAILED {
+				response = *swap
+				break
+			}
+		}
+	}
+
+	return response, nil
 
 }

@@ -112,6 +112,7 @@ func Test_recordChannelBalance(t *testing.T) {
 
 func Test_manageChannelLiquidity(t *testing.T) {
 
+	
 	//gomock controller
 	mockCtrl := gomock.NewController(t)
 
@@ -164,11 +165,22 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		ServerMessage:    "",
 	}, nil).AnyTimes()
 
+	//Mock Monitor
+	mockMonitorClient := provider.NewMockSwapClient_MonitorClient(mockCtrl)
+
+	swapStatus := &looprpc.SwapStatus{
+		State:   looprpc.SwapState_SUCCESS,
+		IdBytes: idBytes,
+	}
+
+	mockMonitorClient.EXPECT().Recv().Return(swapStatus, nil).AnyTimes()
+
+	mockSwapClient.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
+
 	//Mock get new wallet address
 	mockNodeGuardClient.EXPECT().GetNewWalletAddress(gomock.Any(), gomock.Any()).Return(&nodeguard.GetNewWalletAddressResponse{
 		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
-
 	//Mock request withdrawal
 	mockNodeGuardClient.EXPECT().RequestWithdrawal(gomock.Any(), gomock.Any()).Return(&nodeguard.RequestWithdrawalResponse{
 		Txid:        "bd0d500cc43b8c60769fd480170ace6660f2881d69bef475e03210f7f8e80c6f",

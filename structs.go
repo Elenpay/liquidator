@@ -28,7 +28,7 @@ type MonitorChannelInfo struct {
 	liquidationRules map[uint64][]nodeguard.LiquidityRule
 	swapClient       looprpc.SwapClientClient
 	nodeguardClient  nodeguard.NodeGuardServiceClient
-	loopProvider     provider.LoopProvider
+	loopProvider     provider.Provider
 	loopdMacaroon    string
 	nodeInfo         lnrpc.GetInfoResponse
 }
@@ -39,7 +39,7 @@ type ManageChannelLiquidityInfo struct {
 	channelRules        *[]nodeguard.LiquidityRule
 	swapClientClient    looprpc.SwapClientClient
 	nodeguardClient     nodeguard.NodeGuardServiceClient
-	loopProvider        *provider.LoopProvider
+	loopProvider        provider.Provider
 	loopdMacaroon       string
 	nodeInfo            lnrpc.GetInfoResponse
 	ctx                 context.Context

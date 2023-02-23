@@ -14,8 +14,11 @@ type Provider interface {
 	//Reverse Submarine Swap L2->L1
 	RequestReverseSubmarineSwap(context.Context, ReverseSubmarineSwapRequest, looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error)
 
-	//Monitor Swap
-	MonitorSwap(context.Context, string, looprpc.SwapClientClient) (*looprpc.SwapStatus, error)
+	//Swap info
+	GetSwapStatus(context.Context, string, looprpc.SwapClientClient) (looprpc.SwapStatus, error)
+
+	//Monitor Swap by waiting for it to complete or fail
+	MonitorSwap(context.Context, string, looprpc.SwapClientClient) (looprpc.SwapStatus, error)
 }
 
 // Provider-agnostic request for a submarine swap

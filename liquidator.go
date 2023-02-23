@@ -15,6 +15,7 @@ import (
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/Elenpay/liquidator/rpc"
+	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -101,7 +102,7 @@ func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
 	// span exporter
 	exp, err := spanExporter()
 	if err != nil {
-		log.WithError(err).Fatal("failed to initialize Span exporter")
+		log.Fatal("failed to initialize Span exporter")
 	}
 
 	otel.SetTracerProvider(
@@ -382,7 +383,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 				liquidationRules: liquidationRules,
 				swapClient:       info.swapClient,
 				nodeguardClient:  info.nodeguardClient,
-				loopProvider:     loopProvider,
+				loopProvider:     &loopProvider,
 				loopdMacaroon:    info.loopdMacaroon,
 				nodeInfo:         info.nodeInfo,
 			})
@@ -402,7 +403,10 @@ func monitorChannel(info MonitorChannelInfo) {
 	//Add atrributes to span
 	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.Int64("channelId", int64(info.channel.GetChanId())))
 
-	log.Debugf("monitorChannel SpanId: %v TraceId: %v", span.SpanContext().SpanID().String(), span.SpanContext().TraceID().String())
+	spanId := span.SpanContext().SpanID().String()
+	traceId := span.SpanContext().TraceID().String()
+
+	log.Debugf("monitorChannel SpanId: %v TraceId: %v", spanId, traceId)
 	//Record the channel balance in a prometheus gauge
 	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 
@@ -424,7 +428,7 @@ func monitorChannel(info MonitorChannelInfo) {
 		channelRules:        &channelRules,
 		swapClientClient:    info.swapClient,
 		nodeguardClient:     info.nodeguardClient,
-		loopProvider:        &info.loopProvider,
+		loopProvider:        info.loopProvider,
 		loopdMacaroon:       info.loopdMacaroon,
 		nodeInfo:            info.nodeInfo,
 		ctx:                 spanCtx,
@@ -471,7 +475,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 	rule.MinimumRemoteBalance = rule.MinimumRemoteBalance / 100
 	rule.RebalanceTarget = rule.RebalanceTarget / 100
 
-	// If rebalance taget is 0, the swap target balance is the average of the minimum local and remote balance
+	// If rebalance target is 0, the swap target balance is the average of the minimum local and remote balance
 
 	swapTargetRatio := (rule.MinimumRemoteBalance + rule.MinimumLocalBalance) / 2 // Average of the minimum local and remote balance
 
@@ -480,7 +484,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		swapTargetRatio = rule.RebalanceTarget
 	}
 
-	var swapTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
+	var swapAmountTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
 
 	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon, info.ctx)
 	if err != nil {
@@ -493,8 +497,13 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		{
 			//If the balance ratio is below the minimum threshold, perform a reverse swap to increase the local balance
 
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "reverse"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
+
 			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.LocalBalance - swapTarget))
+			swapAmount := helper.AbsInt64((channel.LocalBalance - swapAmountTarget))
 
 			//Request nodeguard a new destination address for the reverse swap
 			walletRequest := &nodeguard.GetNewWalletAddressRequest{
@@ -520,14 +529,30 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				return err
 			}
 
-			log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+			//Monitor the swap
+			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+
+			if swapStatus.State == looprpc.SwapState_FAILED {
+				//Error log: The swap was failed
+				err := fmt.Errorf("failed reverse swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				log.Error(err)
+				return err
+			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+				//Success log: The swap was successful
+				log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+			}
 
 		}
 	case info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
-		//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
 		{
+			//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
+
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "swap"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
 			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapTarget))
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
 			//Perform the swap
 			swapRequest := provider.SubmarineSwapRequest{
@@ -564,10 +589,25 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				return err
 			}
 
+			//Log the swap request
+
 			if withdrawalResponse.IsHotWallet {
 				log.Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
 			} else {
 				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+			}
+
+			//Monitor the swap
+			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+
+			if swapStatus.State == looprpc.SwapState_FAILED {
+				//Error log: The swap was failed
+				err := fmt.Errorf("failed swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				log.Error(err)
+				return err
+			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+				//Success log: The swap was successful
+				log.Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
 			}
 
 		}
