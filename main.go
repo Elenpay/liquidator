@@ -30,6 +30,10 @@ var (
 	nodesMacaroons  []string
 	nodesTLSCerts   []string
 	pollingInterval time.Duration // Parseable by time.ParseDuration
+	nodeguardHost   string
+	loopdHosts      []string
+	loopdMacaroons  []string
+	loopdTLSCerts   []string
 )
 
 func main() {

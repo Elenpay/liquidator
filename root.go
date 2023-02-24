@@ -73,6 +73,15 @@ func init() {
 	rootCmd.Flags().String("nodesTLSCerts", "", "Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS")
 	viper.BindPFlag("nodesTLSCerts", rootCmd.Flags().Lookup("nodesTLSCerts"))
 
+	rootCmd.Flags().String("loopdHosts", "", "Command separated list of hostname:port to connect to loopd, each position corresponds to the managed node in nodesHosts")
+	viper.BindPFlag("loopdHosts", rootCmd.Flags().Lookup("loopdHosts"))
+
+	rootCmd.Flags().String("loopdMacaroons", "", "Command separated list of macaroons used in loopdHosts in hex, in the same order of loopdHosts")
+	viper.BindPFlag("loopdMacaroons", rootCmd.Flags().Lookup("loopdMacaroons"))
+
+	rootCmd.Flags().String("loopdTLSCerts", "", "Command separated list of tls certs from loopd in base64, in the same order of loopdHosts and loopdMacaroons")
+	viper.BindPFlag("loopdTLSCerts", rootCmd.Flags().Lookup("loopdTLSCerts"))
+
 	rootCmd.Flags().String("pollingInterval", "15s", "Interval to poll data")
 	viper.BindPFlag("pollingInterval", rootCmd.Flags().Lookup("pollingInterval"))
 
@@ -82,15 +91,31 @@ func init() {
 	rootCmd.Flags().String("logFormat", "text", "Log format from: {text, json}")
 	viper.BindPFlag("logFormat", rootCmd.Flags().Lookup("logFormat"))
 
+	//Flags for nodeguard grpc endpoint
+	rootCmd.Flags().String("nodeguardHost", "", "Hostname:port to connect to nodeguard")
+	viper.BindPFlag("nodeguardHost", rootCmd.Flags().Lookup("nodeguardHost"))
+
 	//If nodesHosts length is different than nodesMacaroons, exit
 	if len(viper.GetStringSlice("nodesHosts")) != len(viper.GetStringSlice("nodesMacaroons")) {
 		log.Fatal("nodesHosts and nodesMacaroons must have the same length")
 	}
+
 	//Now we set the global vars
 	nodesHosts = strings.Split(viper.GetString("nodesHosts"), ",")
 	nodesMacaroons = strings.Split(viper.GetString("nodesMacaroons"), ",")
 	nodesTLSCerts = strings.Split(viper.GetString("nodesTLSCerts"), ",")
 	pollingInterval = viper.GetDuration("pollingInterval")
+	nodeguardHost = viper.GetString("nodeguardHost")
+	loopdHosts = strings.Split(viper.GetString("loopdHosts"), ",")
+	loopdMacaroons = strings.Split(viper.GetString("loopdMacaroons"), ",")
+	loopdTLSCerts = strings.Split(viper.GetString("loopdTLSCerts"), ",")
+
+	// //Check that nodeguardHost is not empty
+	// if nodeguardHost == "" {
+	// 	log.Fatal("nodeguardHost is empty")
+	// }
+
+	//Set log level and format
 
 	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))
 	if err != nil {
@@ -114,5 +139,9 @@ func init() {
 	log.Debug("pollingInterval: ", pollingInterval)
 	log.Debug("logLevel: ", logLevel)
 	log.Debug("logFormat: ", viper.GetString("logFormat"))
+	log.Debug("nodeguardHost: ", nodeguardHost)
+	log.Debug("loopdHosts: ", loopdHosts)
+	log.Debug("loopdMacaroons: ", loopdMacaroons)
+	log.Debug("loopdTLSCerts: ", loopdTLSCerts)
 
 }

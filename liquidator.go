@@ -2,26 +2,27 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/Elenpay/liquidator/cache"
+	"github.com/Elenpay/liquidator/helper"
+	"github.com/Elenpay/liquidator/nodeguard"
+	"github.com/Elenpay/liquidator/provider"
+	"github.com/Elenpay/liquidator/rpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
 	prometheusMetrics *metrics
+	rulesCache        cache.Cache
 )
 
 type metrics struct {
@@ -29,7 +30,7 @@ type metrics struct {
 }
 
 // Inits the prometheusMetrics global metric struct
-func InitMetrics(reg prometheus.Registerer) {
+func initMetrics(reg prometheus.Registerer) {
 
 	log.Debug("Registering prometheus metrics")
 
@@ -60,7 +61,7 @@ func startLiquidator() {
 	//Create a new prometheus registry
 	reg := prometheus.NewRegistry()
 
-	InitMetrics(reg)
+	initMetrics(reg)
 
 	log.Debug("Prometheus metrics registered")
 
@@ -71,49 +72,95 @@ func startLiquidator() {
 
 	log.Debug("/metrics endpoint started")
 
+	//Start cache to store liquidation rules in case of nodeguard failure
+	cache, err := cache.NewCache()
+	if err != nil {
+		log.Fatalf("failed to create cache: %v", err)
+	}
+	rulesCache = cache
+
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
-	for i, node := range nodesHosts {
+	for i, nodeEndpoint := range nodesHosts {
 
-		log.Infof("Starting monitoring for node: %v", node)
+		log.Infof("starting monitoring for node: %v", nodeEndpoint)
 
-		//Generate TLS credentials from directory
-		tlsCertEncoded := nodesTLSCerts[i]
-		tlsCertDecoded, err := base64.StdEncoding.DecodeString(tlsCertEncoded)
+		nodeTLSCertEncoded := nodesTLSCerts[i]
+
+		loopdTLSCertEncoded := loopdTLSCerts[i]
+
+		//Create a lightning client to connect to the node
+		lightningClient, conn, err := rpc.CreateLightningClient(nodeEndpoint, nodeTLSCertEncoded)
 		if err != nil {
-			log.Fatalf("Failed to decode TLS cert: %v", err)
-		}
-
-		cp := x509.NewCertPool()
-		if !cp.AppendCertsFromPEM(tlsCertDecoded) {
-			log.Fatalf("credentials: failed to append certificates")
-		}
-
-		creds := credentials.NewClientTLSFromCert(cp, "")
-
-		if err != nil {
-			log.Fatalf("Failed to load credentials: %v", err)
-		}
-
-		conn, err := grpc.Dial(node, grpc.WithTransportCredentials(creds))
-
-		if err != nil {
-			log.Fatalf("did not connect: %v", err)
+			log.Fatalf("failed to create lightning client: %v", err)
 		}
 		defer conn.Close()
 
-		lightningClient := lnrpc.NewLightningClient(conn)
+		//TODO Add support for multiple providers in the future
 
-		ctx := context.Background()
+		//Create SwapClient to communicate with loopd
+		loopdHost := loopdHosts[i]
 
-		macaroon := nodesMacaroons[i]
+		swapClient, swapConn, err := rpc.CreateSwapClientClient(loopdHost, loopdTLSCertEncoded)
+		if err != nil {
+			log.Fatalf("failed to create swap client: %v", err)
+		}
+		defer swapConn.Close()
 
-		if macaroon == "" {
-			log.Fatalf("No macaroon provided for node %v", node)
+		//Create NodeGuardClient to communicate with nodeguard
+		nodeguardClient, nodeguardConn, err := rpc.CreateNodeGuardClient(nodeguardHost)
+		if err != nil {
+			log.Fatalf("failed to create nodeguard client: %v", err)
+		}
+		defer nodeguardConn.Close()
+
+		if err != nil {
+			log.Fatalf("failed to create lightning client: %v", err)
+		}
+
+		//Macaroon of the lnd node
+
+		nodeMacaroon := nodesMacaroons[i]
+
+		if nodeMacaroon == "" {
+			log.Fatalf("no macaroon provided for node %v", nodeEndpoint)
+		}
+
+		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon)
+		if err != nil {
+			log.Fatal("failed to generate context with macaroon")
+		}
+
+		//Macaroon of the loopd of this lnd node
+		//TODO Make this optional when loop is not the provider
+		loopdMacaroon := loopdMacaroons[i]
+
+		if loopdMacaroon == "" {
+			log.Fatalf("no macaroon provided for loopd %v", loopdHost)
+		}
+
+		//Get the local node info
+		nodeInfo, err := getLocalNodeInfo(&lightningClient, nodeContext)
+		if err != nil {
+			log.Fatalf("failed to get local node info: %v", err)
 		}
 
 		wg.Add(1)
-		go monitorChannels(node, macaroon, lightningClient, ctx)
+
+		//Start a goroutine to poll nodeguard for liquidation rules for this node
+		go startNodeGuardPolling(*nodeInfo, nodeguardClient, nodeContext)
+
+		//Start a goroutine to monitor the channels of the node
+		go monitorChannels(MonitorChannelsInfo{
+			nodeHost:        nodeEndpoint,
+			nodeInfo:        *nodeInfo,
+			nodeMacaroon:    nodeMacaroon,
+			loopdMacaroon:   loopdMacaroon,
+			lightningClient: lightningClient,
+			nodeguardClient: nodeguardClient,
+			swapClient:      swapClient,
+			nodeCtx:         nodeContext,
+		})
 
 	}
 
@@ -122,8 +169,48 @@ func startLiquidator() {
 	//TODO Graceful shutdown
 }
 
+// Start a goroutine to poll nodeguard for liquidation rules
+func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeguard.NodeGuardServiceClient, ctx context.Context) {
+
+	pubkey := nodeInfo.GetIdentityPubkey()
+
+	for {
+
+		//Get liquidation rules from nodeguard
+		liquidationRules, err := nodeguardClient.GetLiquidityRules(ctx, &nodeguard.GetLiquidityRulesRequest{
+			NodePubkey: pubkey,
+		})
+
+		if liquidationRules == nil || len(liquidationRules.LiquidityRules) == 0 {
+			log.Warnf("no liquidation rules found for node %v", pubkey)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		//TODO Maybe there is a better way to do this
+		var derefRules []nodeguard.LiquidityRule
+
+		for _, rule := range liquidationRules.LiquidityRules {
+			derefRules = append(derefRules, *rule)
+		}
+
+		if err != nil {
+			log.Errorf("failed to get liquidation rules from nodeguard: %v", err)
+		} else {
+			//Store liquidation rules in cache
+			x := nodeInfo.GetIdentityPubkey()
+			rulesCache.SetLiquidityRules(x, derefRules)
+		}
+
+		//Sleep for 10 seconds
+		time.Sleep(10 * time.Second)
+
+	}
+
+}
+
 // Record the channel balance in a prometheus gauge
-func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
+func getChannelBalanceRatio(channel *lnrpc.Channel) (float64, error) {
 
 	capacity := float64(channel.GetCapacity())
 
@@ -154,114 +241,310 @@ func recordChannelBalance(channel *lnrpc.Channel) (float64, error) {
 }
 
 // Locking fuction to be used in a goroutine to monitor channels
-func monitorChannels(nodeHost string, macaroon string, lightningClient lnrpc.LightningClient, ctx context.Context) {
+func monitorChannels(info MonitorChannelsInfo) {
 
 	//Defer a recover function to catch panics
 	defer func() {
 		if r := recover(); r != nil {
-			log.Error("Recovered panic in monitorChannels function, retrying...", r)
+			log.Error("recovered panic in monitorChannels function, retrying...", r)
 
 			//Sleep for 10 seconds before restarting the monitoring
 			time.Sleep(10 * time.Second)
 
 			//Restart monitoring via recursion
-			monitorChannels(nodeHost, macaroon, lightningClient, ctx)
+			monitorChannels(info)
 		}
 
 	}()
 
-	//Check that nodehost matches host:port string
-	if nodeHost == "" {
-		error := fmt.Errorf("nodeHost is empty")
-		log.Error(error)
+	//Check that node host matches host:port string
+	if info.nodeHost == "" {
+		err := fmt.Errorf("nodeHost is empty")
+		log.Error(err)
 	}
 
-	md := metadata.New(map[string]string{"macaroon": macaroon})
-
-	context := metadata.NewOutgoingContext(ctx, md)
-
+	//Loop provider
+	loopProvider := provider.LoopProvider{}
 	//Infinite loop to monitor channels
 	for {
 
 		//Call ListChannels method of lightning client with metadata headers
-		response, err := lightningClient.ListChannels(context, &lnrpc.ListChannelsRequest{
+		response, err := info.lightningClient.ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{
 			ActiveOnly: false,
 		})
 
 		if err != nil {
-			log.Errorf("Error listing channels: %v", err)
+			log.Errorf("error listing channels: %v", err)
 		}
 
 		if response == nil || len(response.Channels) == 0 {
-			log.Errorf("No channels found for node %v", nodeHost)
+			log.Errorf("no channels found for node %v", info.nodeHost)
 
 			time.Sleep(1 * time.Second)
 
 			continue
 		}
 
+		//TODO Support rules without nodeguard in the future
+
+		//Get liquidation rule from cache
+		nodePubKey := info.nodeInfo.GetIdentityPubkey()
+		liquidationRules, err := rulesCache.GetLiquidityRules(nodePubKey)
+		if err != nil {
+			log.Errorf("failed to get liquidation rules from cache: %v for node %s", err, nodePubKey)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
 		//Iterate over response channels
 		for _, channel := range response.Channels {
-			log.Debugf("Monitoring Channel Id: %v", channel.ChanId)
-			//Record the channel balance in a prometheus gauge
-			channelBalanceRatio, err := recordChannelBalance(channel)
-			//Log channel balance ratio in debug mode
-			log.Debugf("Channel balance ratio for node %v channel %v is %v", nodeHost, channel.GetChanId(), channelBalanceRatio)
+			log.Debugf("monitoring Channel Id: %v", channel.ChanId)
 
-			if err != nil {
-				log.Errorf("Error calculating channel balance: %v", err)
+			go monitorChannel(MonitorChannelInfo{
+				channel:          channel,
+				nodeHost:         info.nodeHost,
+				lightningClient:  info.lightningClient,
+				context:          info.nodeCtx,
+				liquidationRules: liquidationRules,
+				swapClient:       info.swapClient,
+				nodeguardClient:  info.nodeguardClient,
+				loopProvider:     loopProvider,
+				loopdMacaroon:    info.loopdMacaroon,
+				nodeInfo:         info.nodeInfo,
+			})
+
+		}
+		//Sleep
+		time.Sleep(pollingInterval)
+	}
+}
+
+func monitorChannel(info MonitorChannelInfo) {
+	//Record the channel balance in a prometheus gauge
+	channelBalanceRatio, err := getChannelBalanceRatio(info.channel)
+
+	if err != nil {
+		log.Errorf("error calculating channel balance: %v", err)
+	}
+	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
+
+	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, info.context)
+
+	channelRules := info.liquidationRules[info.channel.GetChanId()]
+
+	//Manage liquidity
+	err = manageChannelLiquidity(ManageChannelLiquidityInfo{
+		channel:             info.channel,
+		channelBalanceRatio: channelBalanceRatio,
+		channelRules:        &channelRules,
+		swapClientClient:    info.swapClient,
+		nodeguardClient:     info.nodeguardClient,
+		loopProvider:        &info.loopProvider,
+		loopdMacaroon:       info.loopdMacaroon,
+		nodeInfo:            info.nodeInfo,
+	})
+
+	if err != nil {
+		log.Errorf("error managing channel liquidity: %v", err)
+	}
+}
+
+// Manage channel liquidity and perform swaps if necessary
+func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
+
+	//Check if channel is active
+	channel := info.channel
+	channelRules := info.channelRules
+
+	//TODO Review if the following checks should return an error or not
+	if !channel.GetActive() {
+		log.Debugf("channel %v is inactive, skipping", channel.GetChanId())
+		return nil
+	}
+
+	if len(*channelRules) == 0 {
+		log.Debugf("no rules found for channel %v, skipping", channel.GetChanId())
+		return nil
+	}
+
+	if len(*channelRules) > 1 {
+		log.Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
+	}
+
+	//TODO Discuss support multiple rules per channel
+	rule := (*channelRules)[0]
+
+	//Divide all rule percents by 100 to get ratios
+	rule.MinimumLocalBalance = rule.MinimumLocalBalance / 100
+	rule.MinimumRemoteBalance = rule.MinimumRemoteBalance / 100
+	rule.RebalanceTarget = rule.RebalanceTarget / 100
+
+	// If rebalance taget is 0, the swap target balance is the average of the minimum local and remote balance
+
+	swapTargetRatio := (rule.MinimumRemoteBalance + rule.MinimumLocalBalance) / 2 // Average of the minimum local and remote balance
+
+	// If rebalance target is > 0, the swap target balance is the rebalance target
+	if rule.RebalanceTarget > 0 {
+		swapTargetRatio = rule.RebalanceTarget
+	}
+
+	var swapTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
+
+	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon)
+	if err != nil {
+		return err
+	}
+
+	switch {
+
+	case info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
+		{
+			//If the balance ratio is below the minimum threshold, perform a reverse swap to increase the local balance
+
+			//Calculate the swap amount
+			swapAmount := helper.AbsInt64((channel.LocalBalance - swapTarget))
+
+			//Request nodeguard a new destination address for the reverse swap
+			walletRequest := &nodeguard.GetNewWalletAddressRequest{
+				WalletId: rule.WalletId,
 			}
 
-			//ChannelId uint to string
-			channelId := fmt.Sprint(channel.GetChanId())
-
-			//Get the node info
-			localNodeInfo, err := getInfo(&lightningClient, &context)
-
-			if err != nil {
-				log.Errorf("Error getting local node info: %v", err)
+			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(context.Background(), walletRequest)
+			if err != nil || addrResponse.GetAddress() == "" {
+				log.Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
+				return err
 			}
 
-			remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
-
-			if err != nil {
-				log.Errorf("Error getting remote node info: %v", err)
-
+			//Perform the swap
+			swapRequest := provider.ReverseSubmarineSwapRequest{
+				SatsAmount:         swapAmount,
+				ChannelSet:         []uint64{channel.GetChanId()},
+				ReceiverBTCAddress: addrResponse.Address,
 			}
 
-			//Set the channel balance in the gauge
-			localPubKey := localNodeInfo.IdentityPubkey
-			remotePubKey := channel.GetRemotePubkey()
-			localAlias := localNodeInfo.Alias
-			remoteAlias := remoteNodeInfo.GetNode().Alias
-			//Channel Active to string
-			active := strconv.FormatBool(channel.GetActive())
-			initiator := strconv.FormatBool(channel.GetInitiator())
+			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+			if err != nil {
+				log.Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.Alias)
+				return err
+			}
 
-			prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
-				"chan_id":         channelId,
-				"local_node_pubkey":  localPubKey,
-				"remote_node_pubkey": remotePubKey,
-				"local_node_alias":   localAlias,
-				"remote_node_alias":  remoteAlias,
-				"active":             active,
-				"initiator":          initiator,
-			}).Set(channelBalanceRatio)
+			log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
 
-			time.Sleep(pollingInterval)
+		}
+	case info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
+		//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
+		{
+			//Calculate the swap amount
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapTarget))
+
+			//Perform the swap
+			swapRequest := provider.SubmarineSwapRequest{
+				SatsAmount:    swapAmount,
+				LastHopPubkey: channel.RemotePubkey,
+			}
+
+			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+			if err != nil {
+				log.Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.Alias)
+				return err
+			}
+
+			if resp.InvoiceBTCAddress == "" {
+				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.Alias)
+				log.Errorf("error performing swap: %v", err)
+				return err
+			}
+
+			//Request nodeguard to send the swap amount to the invoice address
+
+			withdrawalRequest := nodeguard.RequestWithdrawalRequest{
+				WalletId:    rule.WalletId,
+				Address:     resp.InvoiceBTCAddress,
+				Amount:      swapAmount,
+				Description: fmt.Sprintf("Swap %v", resp.SwapId),
+			}
+
+			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(context.Background(), &withdrawalRequest)
+			if err != nil {
+				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.Alias)
+				log.Errorf("error performing swap: %v", err)
+
+				return err
+			}
+
+			if withdrawalResponse.IsHotWallet {
+				log.Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+			} else {
+				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+			}
+
 		}
 
 	}
 
+	return nil
+
 }
 
+// Record the channel balance in a prometheus gauge
+func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channelBalanceRatio float64, lightningClient lnrpc.LightningClient, context context.Context) {
+
+	channelId := fmt.Sprint(channel.GetChanId())
+
+	localNodeInfo, err := getInfo(&lightningClient, &context)
+
+	if err != nil {
+		log.Errorf("error getting local node info: %v", err)
+	}
+
+	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
+
+	if err != nil {
+		log.Errorf("error getting remote node info: %v", err)
+
+	}
+
+	localPubKey := localNodeInfo.GetIdentityPubkey()
+	remotePubKey := channel.GetRemotePubkey()
+	localAlias := localNodeInfo.GetAlias()
+	remoteAlias := remoteNodeInfo.GetNode().GetAlias()
+
+	active := strconv.FormatBool(channel.GetActive())
+	initiator := strconv.FormatBool(channel.GetInitiator())
+
+	prometheusMetrics.channelBalanceGauge.With(prometheus.Labels{
+		"chan_id":            channelId,
+		"local_node_pubkey":  localPubKey,
+		"remote_node_pubkey": remotePubKey,
+		"local_node_alias":   localAlias,
+		"remote_node_alias":  remoteAlias,
+		"active":             active,
+		"initiator":          initiator,
+	}).Set(channelBalanceRatio)
+}
+
+// Gets the info from the node which we have the macaroon
 func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.GetInfoResponse, error) {
 
 	//Call GetInfo method of lightning client
 	response, err := (*lightningClient).GetInfo(*context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
-		log.Errorf("Error getting info: %v", err)
+		log.Errorf("error getting info: %v", err)
+		return nil, err
+	}
+
+	return response, nil
+}
+
+// Gets the info from the node which we have the macaroon
+func getLocalNodeInfo(lightningClient *lnrpc.LightningClient, context context.Context) (*lnrpc.GetInfoResponse, error) {
+
+	//Call GetInfo method of lightning client
+	response, err := (*lightningClient).GetInfo(context, &lnrpc.GetInfoRequest{})
+
+	if err != nil {
+		log.Errorf("error getting info: %v", err)
 		return nil, err
 	}
 
@@ -272,9 +555,9 @@ func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (
 func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.NodeInfo, error) {
 
 	if pubkey == "" {
-		error := fmt.Errorf("pubkey is empty")
-		log.Error(error, "pubkey is empty")
-		return nil, error
+		err := fmt.Errorf("pubkey is empty")
+		log.Error(err, "pubkey is empty")
+		return nil, err
 
 	}
 
@@ -284,7 +567,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 	})
 
 	if err != nil {
-		log.Errorf("Error getting node info: %v", err)
+		log.Errorf("error getting node info: %v", err)
 		return nil, err
 	}
 
