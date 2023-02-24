@@ -9,15 +9,20 @@ import (
 	"time"
 
 	"github.com/Elenpay/liquidator/cache"
+	"github.com/Elenpay/liquidator/errors"
 	"github.com/Elenpay/liquidator/helper"
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/Elenpay/liquidator/rpc"
+	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var (
@@ -25,36 +30,11 @@ var (
 	rulesCache        cache.Cache
 )
 
-type metrics struct {
-	channelBalanceGauge prometheus.GaugeVec
-}
-
-// Inits the prometheusMetrics global metric struct
-func initMetrics(reg prometheus.Registerer) {
-
-	log.Debug("Registering prometheus metrics")
-
-	m := &metrics{
-		channelBalanceGauge: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "liquidator_channel_balance",
-			Help: "The total number of processed events",
-		},
-			[]string{"chan_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
-		),
-	}
-
-	//Golang collector
-	reg.MustRegister(collectors.NewGoCollector())
-	//Process collector
-	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
-	reg.MustRegister(m.channelBalanceGauge)
-
-	prometheusMetrics = m
-}
-
 // Entrypoint of liquidator main logic
 func startLiquidator() {
+
+	//Init opentelemetry tracer
+	initTracer(context.TODO())
 
 	var wg = &sync.WaitGroup{}
 
@@ -126,7 +106,7 @@ func startLiquidator() {
 			log.Fatalf("no macaroon provided for node %v", nodeEndpoint)
 		}
 
-		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon)
+		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon, context.Background())
 		if err != nil {
 			log.Fatal("failed to generate context with macaroon")
 		}
@@ -140,7 +120,7 @@ func startLiquidator() {
 		}
 
 		//Get the local node info
-		nodeInfo, err := getLocalNodeInfo(&lightningClient, nodeContext)
+		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeContext)
 		if err != nil {
 			log.Fatalf("failed to get local node info: %v", err)
 		}
@@ -148,12 +128,12 @@ func startLiquidator() {
 		wg.Add(1)
 
 		//Start a goroutine to poll nodeguard for liquidation rules for this node
-		go startNodeGuardPolling(*nodeInfo, nodeguardClient, nodeContext)
+		go startNodeGuardPolling(nodeInfo, nodeguardClient, nodeContext)
 
 		//Start a goroutine to monitor the channels of the node
 		go monitorChannels(MonitorChannelsInfo{
 			nodeHost:        nodeEndpoint,
-			nodeInfo:        *nodeInfo,
+			nodeInfo:        nodeInfo,
 			nodeMacaroon:    nodeMacaroon,
 			loopdMacaroon:   loopdMacaroon,
 			lightningClient: lightningClient,
@@ -209,15 +189,21 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 
 }
 
-// Record the channel balance in a prometheus gauge
-func getChannelBalanceRatio(channel *lnrpc.Channel) (float64, error) {
+// Calculate the ratio of remote balance to capacity of a channel
+func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (float64, error) {
+
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(spanCtx, "getChannelBalanceRatio")
+	defer span.End()
 
 	capacity := float64(channel.GetCapacity())
 
 	if capacity <= 0 {
 
 		err := fmt.Errorf("channel capacity is <= 0")
-		log.Error(err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithField("span", span).Error(err)
 		return -1, err
 	}
 
@@ -232,7 +218,9 @@ func getChannelBalanceRatio(channel *lnrpc.Channel) (float64, error) {
 	if channelBalanceRatio > 1 || channelBalanceRatio < 0 {
 
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
-		log.Error(err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithField("span", span).Error(err)
 		return -1, err
 	}
 
@@ -308,7 +296,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 				liquidationRules: liquidationRules,
 				swapClient:       info.swapClient,
 				nodeguardClient:  info.nodeguardClient,
-				loopProvider:     loopProvider,
+				loopProvider:     &loopProvider,
 				loopdMacaroon:    info.loopdMacaroon,
 				nodeInfo:         info.nodeInfo,
 			})
@@ -319,16 +307,31 @@ func monitorChannels(info MonitorChannelsInfo) {
 	}
 }
 
+// Monitor a single channel liquidity and perform actions if needed
 func monitorChannel(info MonitorChannelInfo) {
+
+	//Start span
+	spanCtx, span := otel.Tracer("monitorChannel").Start(info.context, "monitorChannel")
+	defer span.End()
+
+	//Add atrributes to span
+	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.Int64("channelId", int64(info.channel.GetChanId())))
+
+	spanId := span.SpanContext().SpanID().String()
+	traceId := span.SpanContext().TraceID().String()
+
+	log.WithField("span", span).Debugf("monitorChannel SpanId: %v TraceId: %v", spanId, traceId)
 	//Record the channel balance in a prometheus gauge
-	channelBalanceRatio, err := getChannelBalanceRatio(info.channel)
+	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 
 	if err != nil {
-		log.Errorf("error calculating channel balance: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.WithField("span", span).Errorf("error calculating channel balance: %v", err)
 	}
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
-	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, info.context)
+	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, spanCtx)
 
 	channelRules := info.liquidationRules[info.channel.GetChanId()]
 
@@ -339,18 +342,34 @@ func monitorChannel(info MonitorChannelInfo) {
 		channelRules:        &channelRules,
 		swapClientClient:    info.swapClient,
 		nodeguardClient:     info.nodeguardClient,
-		loopProvider:        &info.loopProvider,
+		loopProvider:        info.loopProvider,
 		loopdMacaroon:       info.loopdMacaroon,
 		nodeInfo:            info.nodeInfo,
+		ctx:                 spanCtx,
 	})
 
 	if err != nil {
-		log.Errorf("error managing channel liquidity: %v", err)
+
+		//if err is not of type SwapInProgressError, record it
+
+		switch err.(type) {
+		case *errors.SwapInProgressError:
+
+		default:
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+
+		log.WithField("span", span).Errorf("error managing channel liquidity: %v", err)
 	}
 }
 
 // Manage channel liquidity and perform swaps if necessary
 func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
+
+	//Start span
+	_, span := otel.Tracer("monitorChannel").Start(info.ctx, "manageChannelLiquidity")
+	defer span.End()
 
 	//Check if channel is active
 	channel := info.channel
@@ -358,17 +377,17 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	//TODO Review if the following checks should return an error or not
 	if !channel.GetActive() {
-		log.Debugf("channel %v is inactive, skipping", channel.GetChanId())
+		log.WithField("span", span).Debugf("channel %v is inactive, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) == 0 {
-		log.Debugf("no rules found for channel %v, skipping", channel.GetChanId())
+		log.WithField("span", span).Debugf("no rules found for channel %v, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) > 1 {
-		log.Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
+		log.WithField("span", span).Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
 	}
 
 	//TODO Discuss support multiple rules per channel
@@ -379,7 +398,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 	rule.MinimumRemoteBalance = rule.MinimumRemoteBalance / 100
 	rule.RebalanceTarget = rule.RebalanceTarget / 100
 
-	// If rebalance taget is 0, the swap target balance is the average of the minimum local and remote balance
+	// If rebalance target is 0, the swap target balance is the average of the minimum local and remote balance
 
 	swapTargetRatio := (rule.MinimumRemoteBalance + rule.MinimumLocalBalance) / 2 // Average of the minimum local and remote balance
 
@@ -388,9 +407,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		swapTargetRatio = rule.RebalanceTarget
 	}
 
-	var swapTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
+	var swapAmountTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
 
-	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon)
+	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon, info.ctx)
 	if err != nil {
 		return err
 	}
@@ -401,17 +420,22 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		{
 			//If the balance ratio is below the minimum threshold, perform a reverse swap to increase the local balance
 
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "reverse"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
+
 			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.LocalBalance - swapTarget))
+			swapAmount := helper.AbsInt64((channel.LocalBalance - swapAmountTarget))
 
 			//Request nodeguard a new destination address for the reverse swap
 			walletRequest := &nodeguard.GetNewWalletAddressRequest{
 				WalletId: rule.WalletId,
 			}
 
-			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(context.Background(), walletRequest)
+			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
 			if err != nil || addrResponse.GetAddress() == "" {
-				log.Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
@@ -424,18 +448,40 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
-			log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+			//Monitor the swap
+			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+
+			if swapStatus.State == looprpc.SwapState_FAILED {
+				//Error log: The swap was failed
+				err := fmt.Errorf("failed reverse swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				log.WithField("span", span).Error(err)
+				return err
+			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+				//Success log: The swap was successful
+				log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+
+				swapType := "rswap"
+
+				//Add fees to counter
+				recordSwapFees(swapStatus, info, swapType, channel)
+
+			}
 
 		}
 	case info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
-		//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
 		{
+			//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
+
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "swap"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
 			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapTarget))
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
 			//Perform the swap
 			swapRequest := provider.SubmarineSwapRequest{
@@ -445,13 +491,13 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.Alias)
 				return err
 			}
 
 			if resp.InvoiceBTCAddress == "" {
 				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.Alias)
-				log.Errorf("error performing swap: %v", err)
+				log.WithField("span", span).Errorf("error performing swap: %v", err)
 				return err
 			}
 
@@ -464,18 +510,38 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				Description: fmt.Sprintf("Swap %v", resp.SwapId),
 			}
 
-			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(context.Background(), &withdrawalRequest)
+			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
 			if err != nil {
 				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.Alias)
-				log.Errorf("error performing swap: %v", err)
+				log.WithField("span", span).Errorf("error performing swap: %v", err)
 
 				return err
 			}
 
+			//Log the swap request
+
 			if withdrawalResponse.IsHotWallet {
-				log.Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
 			} else {
-				log.Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+			}
+
+			//Monitor the swap
+			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+
+			if swapStatus.State == looprpc.SwapState_FAILED {
+				//Error log: The swap was failed
+				err := fmt.Errorf("failed swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				log.WithField("span", span).Error(err)
+				return err
+			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+				//Success log: The swap was successful
+				log.WithField("span", span).Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+
+				swapType := "swap"
+
+				//Add fees to counter
+				recordSwapFees(swapStatus, info, swapType, channel)
 			}
 
 		}
@@ -486,21 +552,52 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 }
 
+// Add fees to the prometheus counter for swaps
+func recordSwapFees(swapStatus looprpc.SwapStatus, info ManageChannelLiquidityInfo, swapType string, channel *lnrpc.Channel) {
+
+	offChainFees := float64(swapStatus.GetCostOffchain())
+	onChainFees := float64(swapStatus.GetCostOnchain())
+	providerFees := float64(swapStatus.GetCostServer())
+
+	if offChainFees > 0 {
+
+		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
+
+	}
+
+	if onChainFees > 0 {
+		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
+	}
+
+	if providerFees > 0 {
+
+		prometheusMetrics.providerFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
+	}
+
+}
+
 // Record the channel balance in a prometheus gauge
 func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channelBalanceRatio float64, lightningClient lnrpc.LightningClient, context context.Context) {
+	//Start span
+	_, span := otel.Tracer("monitorChannel").Start(context, "recordChannelBalanceMetric")
+	defer span.End()
 
 	channelId := fmt.Sprint(channel.GetChanId())
 
-	localNodeInfo, err := getInfo(&lightningClient, &context)
+	localNodeInfo, err := getInfo(lightningClient, context)
 
 	if err != nil {
-		log.Errorf("error getting local node info: %v", err)
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithField("span", span).Errorf("error getting local node info: %v", err)
 	}
 
-	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, &lightningClient, &context)
+	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, lightningClient, context)
 
 	if err != nil {
-		log.Errorf("error getting remote node info: %v", err)
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithField("span", span).Errorf("error getting remote node info: %v", err)
 
 	}
 
@@ -524,35 +621,35 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 }
 
 // Gets the info from the node which we have the macaroon
-func getInfo(lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.GetInfoResponse, error) {
+func getInfo(lightningClient lnrpc.LightningClient, context context.Context) (lnrpc.GetInfoResponse, error) {
 
 	//Call GetInfo method of lightning client
-	response, err := (*lightningClient).GetInfo(*context, &lnrpc.GetInfoRequest{})
+	response, err := lightningClient.GetInfo(context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
 		log.Errorf("error getting info: %v", err)
-		return nil, err
+		return lnrpc.GetInfoResponse{}, err
 	}
 
-	return response, nil
+	return *response, nil
 }
 
 // Gets the info from the node which we have the macaroon
-func getLocalNodeInfo(lightningClient *lnrpc.LightningClient, context context.Context) (*lnrpc.GetInfoResponse, error) {
+func getLocalNodeInfo(lightningClient lnrpc.LightningClient, context context.Context) (lnrpc.GetInfoResponse, error) {
 
 	//Call GetInfo method of lightning client
-	response, err := (*lightningClient).GetInfo(context, &lnrpc.GetInfoRequest{})
+	response, err := lightningClient.GetInfo(context, &lnrpc.GetInfoRequest{})
 
 	if err != nil {
 		log.Errorf("error getting info: %v", err)
-		return nil, err
+		return lnrpc.GetInfoResponse{}, err
 	}
 
-	return response, nil
+	return *response, nil
 }
 
 // Gets the info from the node with the given pubkey
-func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context *context.Context) (*lnrpc.NodeInfo, error) {
+func getNodeInfo(pubkey string, lightningClient lnrpc.LightningClient, context context.Context) (*lnrpc.NodeInfo, error) {
 
 	if pubkey == "" {
 		err := fmt.Errorf("pubkey is empty")
@@ -562,7 +659,7 @@ func getNodeInfo(pubkey string, lightningClient *lnrpc.LightningClient, context 
 	}
 
 	//Call GetNodeInfo method of lightning client with metadata headers
-	response, err := (*lightningClient).GetNodeInfo(*context, &lnrpc.NodeInfoRequest{
+	response, err := (lightningClient).GetNodeInfo(context, &lnrpc.NodeInfoRequest{
 		PubKey: pubkey,
 	})
 

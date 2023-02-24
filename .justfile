@@ -17,6 +17,8 @@ compile-lnrpc-proto:
     rm -rf ./github.com/lightningnetwork/lnd && protoc -I lnd/lnrpc --go_out=. --go-grpc_out=.  lnd/lnrpc/*.proto && cd ./github.com/lightningnetwork/lnd/lnrpc && go mod init lnrpc
 compile-nodeguard-proto:
     rm -rf nodeguard && protoc -I rpc --go_out=. --go-grpc_out=.  rpc/*.proto && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard
+compile-provider-mocks:
+    mockgen -destination ./provider/provider_mock.go -source provider/provider.go  -package provider && mockgen -destination ./provider/loopd_mock.go -source loop/looprpc/client_grpc.pb.go  -package provider
 compile-loop-proto:
     rm -rf ./github.com/lightninglabs/loop && cd loop && protoc -I. -I looprpc -I swapserverrpc --go_out=.. --go-grpc_out=..  looprpc/*.proto  && cd ../github.com/lightninglabs/loop/looprpc && go mod init looprpc    
 cover-test:
@@ -36,7 +38,7 @@ loopin sats='1000000':
 loopout chanid sats='500000' :
     just loop out --amt {{sats}} --channel {{chanid}} -v --fast
 unzip-loopd-datadir:
-    rm -rf .loop; unzip loopd.zip
+    rm -rf .loop; unzip loopd.zip; rm -rf .loop/regtest/loop.db
 mine:
     while true; do docker exec polar-n1-backend1 bitcoin-cli -regtest -rpcuser=polaruser -rpcpassword=polarpass -generate 1; sleep 60; done
 

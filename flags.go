@@ -110,11 +110,6 @@ func init() {
 	loopdMacaroons = strings.Split(viper.GetString("loopdMacaroons"), ",")
 	loopdTLSCerts = strings.Split(viper.GetString("loopdTLSCerts"), ",")
 
-	// //Check that nodeguardHost is not empty
-	// if nodeguardHost == "" {
-	// 	log.Fatal("nodeguardHost is empty")
-	// }
-
 	//Set log level and format
 
 	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))

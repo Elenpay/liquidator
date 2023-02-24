@@ -150,7 +150,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		SwapPaymentDest: []byte{},
 		CltvDelta:       0,
 		ConfTarget:      1,
-	}, nil).Times(1)
+	}, nil).AnyTimes()
 
 	idBytes, err := hex.DecodeString("1234")
 	if err != nil {
@@ -164,7 +164,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 		HtlcAddressP2Wsh: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
 		HtlcAddressP2Tr:  "",
 		ServerMessage:    "Test",
-	}, nil).Times(1)
+	}, nil).AnyTimes()
 
 	//Mock ListSwaps to return fake data
 
@@ -175,7 +175,7 @@ func TestLoopProvider_RequestReverseSubmarineSwap(t *testing.T) {
 				Id:               "",
 				IdBytes:          idBytes,
 				Type:             0,
-				State:            0,
+				State:            looprpc.SwapState_FAILED,
 				FailureReason:    0,
 				InitiationTime:   0,
 				LastUpdateTime:   0,
@@ -296,7 +296,7 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 		Label:            "",
 	}
 
-	client.EXPECT().SwapInfo(gomock.Any(), gomock.Any()).Return(&status, nil).Times(1)
+	client.EXPECT().SwapInfo(gomock.Any(), gomock.Any()).Return(&status, nil).AnyTimes()
 
 	type args struct {
 		ctx     context.Context
@@ -308,7 +308,7 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 		name    string
 		l       *LoopProvider
 		args    args
-		want    *looprpc.SwapStatus
+		want    looprpc.SwapStatus
 		wantErr bool
 	}{
 		{
@@ -319,7 +319,7 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 				request: "",
 				client:  nil,
 			},
-			want: &looprpc.SwapStatus{},
+			want: looprpc.SwapStatus{},
 
 			wantErr: true,
 		},
@@ -331,7 +331,7 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 				request: "1234",
 				client:  client,
 			},
-			want:    &status,
+			want:    status,
 			wantErr: false,
 		},
 	}
@@ -518,4 +518,86 @@ func Test_checkReverseSubmarineSwapNotInProgress(t *testing.T) {
 		})
 	}
 
+}
+
+func TestLoopProvider_MonitorSwap(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+
+	//Success Swap Client
+	mockSwapClientSuccess := NewMockSwapClientClient(ctrl)
+
+	//Mock Monitor
+	mockMonitorClient := NewMockSwapClient_MonitorClient(ctrl)
+
+	idBytes, _ := hex.DecodeString("1234")
+
+	swapStatus := &looprpc.SwapStatus{
+		State:   looprpc.SwapState_SUCCESS,
+		IdBytes: idBytes,
+	}
+
+	mockMonitorClient.EXPECT().Recv().Return(swapStatus, nil).AnyTimes()
+
+	mockSwapClientSuccess.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
+
+	//Failure Swap Client
+	mockSwapClientFailure := NewMockSwapClientClient(ctrl)
+
+	failureSwapStatus := &looprpc.SwapStatus{
+		State: looprpc.SwapState_FAILED,
+	}
+
+	mockMonitorClient.EXPECT().Recv().Return(failureSwapStatus, nil).AnyTimes()
+
+	mockSwapClientFailure.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
+
+	type args struct {
+		ctx        context.Context
+		swapId     string
+		swapClient looprpc.SwapClientClient
+	}
+	tests := []struct {
+		name    string
+		l       *LoopProvider
+		args    args
+		want    looprpc.SwapStatus
+		wantErr bool
+	}{
+		{
+			name: "MonitorSwap_Success",
+			l:    &LoopProvider{},
+			args: args{
+				ctx:        context.TODO(),
+				swapId:     "1234",
+				swapClient: mockSwapClientSuccess,
+			},
+			want:    *swapStatus,
+			wantErr: false,
+		},
+		{
+			name: "MonitorSwap_Failed",
+			l:    &LoopProvider{},
+			args: args{
+				ctx:        context.TODO(),
+				swapId:     "1234",
+				swapClient: mockSwapClientFailure,
+			},
+			want:    *swapStatus,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &LoopProvider{}
+			got, err := l.MonitorSwap(tt.args.ctx, tt.args.swapId, tt.args.swapClient)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("LoopProvider.MonitorSwap() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("LoopProvider.MonitorSwap() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
