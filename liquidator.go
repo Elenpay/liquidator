@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Elenpay/liquidator/cache"
+	"github.com/Elenpay/liquidator/errors"
 	"github.com/Elenpay/liquidator/helper"
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
@@ -352,7 +353,7 @@ func monitorChannel(info MonitorChannelInfo) {
 		//if err is not of type SwapInProgressError, record it
 
 		switch err.(type) {
-		case *SwapInProgressError:
+		case *errors.SwapInProgressError:
 
 		default:
 			span.RecordError(err)

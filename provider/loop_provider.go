@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Elenpay/liquidator/errors"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/routing/route"
@@ -125,11 +126,16 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
 	for _, swap := range loopInSwaps {
 		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
-			//Create error
-			id := hex.EncodeToString(swap.GetIdBytes())
-			err := fmt.Errorf("another Submarine swap is already in progress, swap id: %s", id)
+			//Create error  of Swap already in progress
 
-			return err
+			id := hex.EncodeToString(swap.GetIdBytes())
+			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
+
+			swapInProgressErr := errors.SwapInProgressError{
+				Message: errMessage,
+			}
+
+			return &swapInProgressErr
 		}
 	}
 
@@ -164,9 +170,13 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
 			//Create error
 			id := hex.EncodeToString(swap.GetIdBytes())
-			err := fmt.Errorf("another Reverse Submarine swap is already in progress, swap id: %s", id)
+			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
 
-			return err
+			swapInProgressErr := errors.SwapInProgressError{
+				Message: errMessage,
+			}
+
+			return &swapInProgressErr
 		}
 
 	}
