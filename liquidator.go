@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -17,105 +15,19 @@ import (
 	"github.com/Elenpay/liquidator/rpc"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/sdk/resource"
-	"go.opentelemetry.io/otel/sdk/trace"
-
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
 var (
 	prometheusMetrics *metrics
 	rulesCache        cache.Cache
 )
-
-type metrics struct {
-	channelBalanceGauge prometheus.GaugeVec
-}
-
-// Inits the prometheusMetrics global metric struct
-func initMetrics(reg prometheus.Registerer) {
-
-	log.Debug("Registering prometheus metrics")
-
-	m := &metrics{
-		channelBalanceGauge: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "liquidator_channel_balance",
-			Help: "The total number of processed events",
-		},
-			[]string{"chan_id", "local_node_pubkey", "remote_node_pubkey", "local_node_alias", "remote_node_alias", "active", "initiator"},
-		),
-	}
-
-	//Golang collector
-	reg.MustRegister(collectors.NewGoCollector())
-	//Process collector
-	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-
-	reg.MustRegister(m.channelBalanceGauge)
-
-	prometheusMetrics = m
-}
-
-// newResource returns a resource describing this application.
-func newResource() *resource.Resource {
-	r, err := resource.New(
-		context.Background(),
-		resource.WithAttributes(semconv.ServiceNameKey.String(OTELServiceName)),
-		resource.WithFromEnv(),
-	)
-	if err != nil {
-		log.Fatalf("Failed to detect environment resource: %v", err)
-	}
-
-	return r
-}
-
-func spanExporter() (*otlptrace.Exporter, error) {
-	var otlpEndpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if otlpEndpoint != "" {
-		log.Infof("exporting to OTLP collector at %s", otlpEndpoint)
-		traceClient := otlptracegrpc.NewClient(
-			otlptracegrpc.WithInsecure(),
-			otlptracegrpc.WithEndpoint(otlpEndpoint),
-		)
-		return otlptrace.New(context.Background(), traceClient)
-	}
-	return nil, errors.New("OTEL_EXPORTER_OTLP_ENDPOINT must not be empty")
-}
-
-// Init opentelemetry tracer
-func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
-
-	//TracerProvider
-	res := newResource()
-	tp := trace.NewTracerProvider(trace.WithResource(res))
-
-	// span exporter
-	exp, err := spanExporter()
-	if err != nil {
-		log.Fatal("failed to initialize Span exporter")
-	}
-
-	otel.SetTracerProvider(
-		trace.NewTracerProvider(
-			trace.WithSampler(trace.AlwaysSample()),
-			trace.WithResource(res),
-			trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
-		),
-	)
-
-	return tp, nil
-
-}
 
 // Entrypoint of liquidator main logic
 func startLiquidator() {
@@ -276,7 +188,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 
 }
 
-// Record the channel balance in a prometheus gauge
+// Calculate the ratio of remote balance to capacity of a channel
 func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (float64, error) {
 
 	//Start span
@@ -394,6 +306,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 	}
 }
 
+// Monitor a single channel liquidity and perform actions if needed
 func monitorChannel(info MonitorChannelInfo) {
 
 	//Start span
@@ -435,8 +348,17 @@ func monitorChannel(info MonitorChannelInfo) {
 	})
 
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+
+		//if err is not of type SwapInProgressError, record it
+
+		switch err.(type) {
+		case *SwapInProgressError:
+
+		default:
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+
 		log.WithContext(spanCtx).Errorf("error managing channel liquidity: %v", err)
 	}
 }
@@ -540,6 +462,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 				//Success log: The swap was successful
 				log.Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+
+				swapType := "rswap"
+
+				//Add fees to counter
+				recordSwapFees(swapStatus, info, swapType, channel)
+
 			}
 
 		}
@@ -608,6 +536,11 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 				//Success log: The swap was successful
 				log.Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+
+				swapType := "swap"
+
+				//Add fees to counter
+				recordSwapFees(swapStatus, info, swapType, channel)
 			}
 
 		}
@@ -615,6 +548,30 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 	}
 
 	return nil
+
+}
+
+// Add fees to the prometheus counter for swaps
+func recordSwapFees(swapStatus looprpc.SwapStatus, info ManageChannelLiquidityInfo, swapType string, channel *lnrpc.Channel) {
+
+	offChainFees := float64(swapStatus.GetCostOffchain())
+	onChainFees := float64(swapStatus.GetCostOnchain())
+	providerFees := float64(swapStatus.GetCostServer())
+
+	if offChainFees > 0 {
+
+		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
+
+	}
+
+	if onChainFees > 0 {
+		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
+	}
+
+	if providerFees > 0 {
+
+		prometheusMetrics.providerFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
+	}
 
 }
 
