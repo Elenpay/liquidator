@@ -43,18 +43,18 @@ func initMetrics(reg prometheus.Registerer) {
 			Name: "liquidator_onchain_fees",
 			Help: "Onchain fees of swaps in sats",
 		},
-			[]string{"node_alias", "swap_type", "channel_id", "provider"},
+			[]string{"node_alias", "swap_type", "chan_id", "provider"},
 		),
 		offchainFees: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "liquidator_offchain_fees",
 			Help: "Offchain fees of swaps in sats",
 		},
-			[]string{"node_alias", "swap_type", "channel_id", "provider"}),
+			[]string{"node_alias", "swap_type", "chan_id", "provider"}),
 		providerFees: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "liquidator_provider_fees",
 			Help: "Fees of the swap provider (i.e. Loop) in sats",
 		},
-			[]string{"node_alias", "swap_type", "channel_id", "provider"},
+			[]string{"node_alias", "swap_type", "chan_id", "provider"},
 		),
 	}
 	//Register custom metrics

@@ -203,7 +203,7 @@ func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (fl
 		err := fmt.Errorf("channel capacity is <= 0")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		log.WithContext(spanCtx).Error(err)
+		log.WithField("span", span).Error(err)
 		return -1, err
 	}
 
@@ -220,7 +220,7 @@ func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (fl
 		err := fmt.Errorf("channel balance ratio is not between 0 and 1")
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		log.WithContext(spanCtx).Error(err)
+		log.WithField("span", span).Error(err)
 		return -1, err
 	}
 
@@ -320,14 +320,14 @@ func monitorChannel(info MonitorChannelInfo) {
 	spanId := span.SpanContext().SpanID().String()
 	traceId := span.SpanContext().TraceID().String()
 
-	log.Debugf("monitorChannel SpanId: %v TraceId: %v", spanId, traceId)
+	log.WithField("span", span).Debugf("monitorChannel SpanId: %v TraceId: %v", spanId, traceId)
 	//Record the channel balance in a prometheus gauge
 	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		log.WithContext(spanCtx).Errorf("error calculating channel balance: %v", err)
+		log.WithField("span", span).Errorf("error calculating channel balance: %v", err)
 	}
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
@@ -360,7 +360,7 @@ func monitorChannel(info MonitorChannelInfo) {
 			span.SetStatus(codes.Error, err.Error())
 		}
 
-		log.WithContext(spanCtx).Errorf("error managing channel liquidity: %v", err)
+		log.WithField("span", span).Errorf("error managing channel liquidity: %v", err)
 	}
 }
 
@@ -368,7 +368,7 @@ func monitorChannel(info MonitorChannelInfo) {
 func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	//Start span
-	spanCtx, span := otel.Tracer("monitorChannel").Start(info.ctx, "manageChannelLiquidity")
+	_, span := otel.Tracer("monitorChannel").Start(info.ctx, "manageChannelLiquidity")
 	defer span.End()
 
 	//Check if channel is active
@@ -377,17 +377,17 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	//TODO Review if the following checks should return an error or not
 	if !channel.GetActive() {
-		log.WithContext(spanCtx).Debugf("channel %v is inactive, skipping", channel.GetChanId())
+		log.WithField("span", span).Debugf("channel %v is inactive, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) == 0 {
-		log.WithContext(spanCtx).Debugf("no rules found for channel %v, skipping", channel.GetChanId())
+		log.WithField("span", span).Debugf("no rules found for channel %v, skipping", channel.GetChanId())
 		return nil
 	}
 
 	if len(*channelRules) > 1 {
-		log.WithContext(spanCtx).Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
+		log.WithField("span", span).Warnf("multiple rules found for channel %v, only the first rule will be used", channel.GetChanId())
 	}
 
 	//TODO Discuss support multiple rules per channel
@@ -561,17 +561,17 @@ func recordSwapFees(swapStatus looprpc.SwapStatus, info ManageChannelLiquidityIn
 
 	if offChainFees > 0 {
 
-		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
+		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
 
 	}
 
 	if onChainFees > 0 {
-		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
+		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
 	}
 
 	if providerFees > 0 {
 
-		prometheusMetrics.providerFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "channel_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
+		prometheusMetrics.providerFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
 	}
 
 }
@@ -579,7 +579,7 @@ func recordSwapFees(swapStatus looprpc.SwapStatus, info ManageChannelLiquidityIn
 // Record the channel balance in a prometheus gauge
 func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channelBalanceRatio float64, lightningClient lnrpc.LightningClient, context context.Context) {
 	//Start span
-	spanCtx, span := otel.Tracer("monitorChannel").Start(context, "recordChannelBalanceMetric")
+	_, span := otel.Tracer("monitorChannel").Start(context, "recordChannelBalanceMetric")
 	defer span.End()
 
 	channelId := fmt.Sprint(channel.GetChanId())
@@ -589,7 +589,7 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
-		log.WithContext(spanCtx).Errorf("error getting local node info: %v", err)
+		log.WithField("span", span).Errorf("error getting local node info: %v", err)
 	}
 
 	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, lightningClient, context)
@@ -597,7 +597,7 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
-		log.WithContext(spanCtx).Errorf("error getting remote node info: %v", err)
+		log.WithField("span", span).Errorf("error getting remote node info: %v", err)
 
 	}
 
