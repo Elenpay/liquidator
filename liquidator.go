@@ -423,7 +423,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Add attribute to the span of swap requested
 			span.SetAttributes(attribute.String("swapRequestedType", "reverse"))
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
-			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.GetIdentityPubkey()))
 
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.LocalBalance - swapAmountTarget))
@@ -435,7 +435,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
 			if err != nil || addrResponse.GetAddress() == "" {
-				log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				return err
 			}
 
@@ -448,7 +448,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.WithField("span", span).Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				return err
 			}
 
@@ -457,12 +457,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			if swapStatus.State == looprpc.SwapState_FAILED {
 				//Error log: The swap was failed
-				err := fmt.Errorf("failed reverse swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				err := fmt.Errorf("failed reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Error(err)
 				return err
 			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 				//Success log: The swap was successful
-				log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
 				swapType := "rswap"
 
@@ -479,7 +479,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Add attribute to the span of swap requested
 			span.SetAttributes(attribute.String("swapRequestedType", "swap"))
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
-			span.SetAttributes(attribute.String("node", info.nodeInfo.Alias))
+			span.SetAttributes(attribute.String("node", info.nodeInfo.GetIdentityPubkey()))
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
@@ -491,12 +491,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.WithField("span", span).Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.Alias)
+				log.WithField("span", span).Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				return err
 			}
 
 			if resp.InvoiceBTCAddress == "" {
-				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.Alias)
+				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Errorf("error performing swap: %v", err)
 				return err
 			}
@@ -512,7 +512,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
 			if err != nil {
-				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.Alias)
+				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Errorf("error performing swap: %v", err)
 
 				return err
@@ -521,9 +521,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Log the swap request
 
 			if withdrawalResponse.IsHotWallet {
-				log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 			} else {
-				log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 			}
 
 			//Monitor the swap
@@ -531,12 +531,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			if swapStatus.State == looprpc.SwapState_FAILED {
 				//Error log: The swap was failed
-				err := fmt.Errorf("failed swap with swap id: %v, channel: %v on node: %v", err, channel.GetChanId(), info.nodeInfo.Alias)
+				err := fmt.Errorf("failed swap failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Error(err)
 				return err
 			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 				//Success log: The swap was successful
-				log.WithField("span", span).Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.Alias)
+				log.WithField("span", span).Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
 				swapType := "swap"
 
@@ -561,17 +561,17 @@ func recordSwapFees(swapStatus looprpc.SwapStatus, info ManageChannelLiquidityIn
 
 	if offChainFees > 0 {
 
-		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
+		prometheusMetrics.offchainFees.With(prometheus.Labels{"node_pubkey": info.nodeInfo.GetIdentityPubkey(), "node_alias": info.nodeInfo.GetAlias(), "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(offChainFees)
 
 	}
 
 	if onChainFees > 0 {
-		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
+		prometheusMetrics.onchainFees.With(prometheus.Labels{"node_pubkey": info.nodeInfo.GetIdentityPubkey(), "node_alias": info.nodeInfo.GetAlias(), "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(onChainFees)
 	}
 
 	if providerFees > 0 {
 
-		prometheusMetrics.providerFees.With(prometheus.Labels{"node_alias": info.nodeInfo.Alias, "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
+		prometheusMetrics.providerFees.With(prometheus.Labels{"node_pubkey": info.nodeInfo.GetIdentityPubkey(), "node_alias": info.nodeInfo.GetAlias(), "swap_type": swapType, "chan_id": fmt.Sprintf("%v", channel.ChanId), "provider": "loop"}).Add(providerFees)
 	}
 
 }
