@@ -423,7 +423,8 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Add attribute to the span of swap requested
 			span.SetAttributes(attribute.String("swapRequestedType", "reverse"))
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
-			span.SetAttributes(attribute.String("node", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
 
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.LocalBalance - swapAmountTarget))
@@ -479,7 +480,8 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Add attribute to the span of swap requested
 			span.SetAttributes(attribute.String("swapRequestedType", "swap"))
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
-			span.SetAttributes(attribute.String("node", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
