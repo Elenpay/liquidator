@@ -533,7 +533,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			if swapStatus.State == looprpc.SwapState_FAILED {
 				//Error log: The swap was failed
-				err := fmt.Errorf("failed swap failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+				err := fmt.Errorf("failed swap failure reason: %v, channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Error(err)
 				return err
 			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
