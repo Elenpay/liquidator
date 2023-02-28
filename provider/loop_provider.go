@@ -328,6 +328,20 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 		return looprpc.SwapStatus{}, err
 	}
 
+	//Before loop, lets make sure we have a swap with the given in swaps lists
+	//If not, we will return an error
+	swapFound, err := checkSwapInListSwaps(ctx, swapClient, monitoredSwapIdBytes)
+	if err != nil {
+		log.Error(err)
+		return looprpc.SwapStatus{}, err
+	}
+
+	if !swapFound {
+		err := fmt.Errorf("swap with id %v not found in loopd swap list, stopping monitoring", hex.EncodeToString(monitoredSwapIdBytes))
+		log.Error(err)
+		return looprpc.SwapStatus{}, err
+	}
+
 	//Monitor swap using swap client and process the stream of events
 
 	//Create a stream
@@ -366,9 +380,44 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 				response = *swap
 				break
 			}
+		} else {
+			log.Debugf("swap with id %v status: %v", hex.EncodeToString(swap.IdBytes), swap.GetState().String())
 		}
+
+		//If the swap is not found in the list, we will stop monitoring
+		swapFound, err := checkSwapInListSwaps(ctx, swapClient, monitoredSwapIdBytes)
+		if err != nil {
+			log.Error(err)
+			return looprpc.SwapStatus{}, err
+		}
+
+		if !swapFound {
+			err := fmt.Errorf("swap with id %v not found in loopd swap list, stopping monitoring", hex.EncodeToString(monitoredSwapIdBytes))
+			log.Error(err)
+			return looprpc.SwapStatus{}, err
+		}
+
 	}
 
 	return response, nil
 
+}
+
+// Check that a swap by id bytes is in loopd swaps list
+func checkSwapInListSwaps(ctx context.Context, swapClient looprpc.SwapClientClient, monitoredSwapIdBytes []byte) (bool, error) {
+
+	//Get swaps
+	swaps, err := swapClient.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
+	if err != nil {
+		return false, err
+	}
+
+	//Check if the swap is in the list
+	for _, swap := range swaps.Swaps {
+		if bytes.Equal(monitoredSwapIdBytes, swap.IdBytes) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

@@ -1,8 +1,9 @@
 package main
 
 import (
-	context "context"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
@@ -10,17 +11,21 @@ import (
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
+	"go.uber.org/goleak"
 )
 
 // Tear up method
 func TestMain(m *testing.M) {
+
+	log.SetLevel(log.DebugLevel)
+
 	//Tear up
 	initMetrics(prometheus.NewRegistry())
 
-	//Run tests
-	m.Run()
+	//Run tests and ve
+	goleak.VerifyTestMain(m)
 
-	//Tear down
 }
 
 func Test_recordChannelBalance(t *testing.T) {
@@ -85,75 +90,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 
 	//Mock nodeguard client
 	mockNodeGuardClient := nodeguard.NewMockNodeGuardServiceClient(mockCtrl)
-
-	//Mock provider valid swaps
-	mockProvider := provider.NewMockProvider(mockCtrl)
-
-	//Mock RequestReverseSubmarineSwap
-	mockProvider.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.ReverseSubmarineSwapResponse{
-		SwapId: "1234",
-	}, nil).AnyTimes()
-
-	//Mock RequestSubmarineSwap
-	mockProvider.EXPECT().RequestSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.SubmarineSwapResponse{
-		SwapId:            "1234",
-		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
-	}, nil).AnyTimes()
-
-	//MockRequestSubmarineSwap
-	mockProvider.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
-		Amt:              0,
-		Id:               "",
-		IdBytes:          []byte{},
-		Type:             0,
-		State:            looprpc.SwapState_SUCCESS,
-		FailureReason:    looprpc.FailureReason_FAILURE_REASON_INSUFFICIENT_VALUE,
-		InitiationTime:   0,
-		LastUpdateTime:   0,
-		HtlcAddress:      "",
-		HtlcAddressP2Wsh: "",
-		HtlcAddressP2Tr:  "",
-		CostServer:       0,
-		CostOnchain:      0,
-		CostOffchain:     0,
-		LastHop:          []byte{},
-		OutgoingChanSet:  []uint64{},
-		Label:            "",
-	}, nil).AnyTimes()
-
-	//Mock provider invalid swaps
-	mockProviderInvalid := provider.NewMockProvider(mockCtrl)
-
-	//Mock RequestReverseSubmarineSwap
-	mockProviderInvalid.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.ReverseSubmarineSwapResponse{
-		SwapId: "1234",
-	}, nil).AnyTimes()
-
-	//Mock RequestSubmarineSwap
-	mockProviderInvalid.EXPECT().RequestSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.SubmarineSwapResponse{
-		SwapId:            "1234",
-		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
-	}, nil).AnyTimes()
-
-	//MockRequestSubmarineSwap
-	mockProviderInvalid.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
-		Amt:           0,
-		Id:            "",
-		IdBytes:       []byte{},
-		Type:          0,
-		State:         looprpc.SwapState_FAILED,
-		FailureReason: looprpc.FailureReason_FAILURE_REASON_INSUFFICIENT_VALUE,
-	}, nil).AnyTimes()
-
-	//Mock get new wallet address
 	mockNodeGuardClient.EXPECT().GetNewWalletAddress(gomock.Any(), gomock.Any()).Return(&nodeguard.GetNewWalletAddressResponse{
 		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
-	//Mock request withdrawal
+
 	mockNodeGuardClient.EXPECT().RequestWithdrawal(gomock.Any(), gomock.Any()).Return(&nodeguard.RequestWithdrawalResponse{
 		Txid:        "bd0d500cc43b8c60769fd480170ace6660f2881d69bef475e03210f7f8e80c6f",
 		IsHotWallet: true,
 	}, nil).AnyTimes()
+
+	//Mock provider valid swaps
+	mockProvider := createMockProviderValidSwap(mockCtrl)
+
+	//Mock provider invalid swap
+	mockProviderInvalid := createMockProviderInvalidSwap(mockCtrl)
 
 	//Active channel
 	channelActive := &lnrpc.Channel{
@@ -247,4 +197,161 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createMockProviderValidSwap(mockCtrl *gomock.Controller) *provider.MockProvider {
+	mockProvider := provider.NewMockProvider(mockCtrl)
+
+	mockProvider.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.ReverseSubmarineSwapResponse{
+		SwapId: "1234",
+	}, nil).AnyTimes()
+
+	mockProvider.EXPECT().RequestSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.SubmarineSwapResponse{
+		SwapId:            "1234",
+		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
+	}, nil).AnyTimes()
+
+	mockProvider.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
+		Amt:              0,
+		Id:               "",
+		IdBytes:          []byte{},
+		Type:             0,
+		State:            looprpc.SwapState_SUCCESS,
+		FailureReason:    0,
+		InitiationTime:   0,
+		LastUpdateTime:   0,
+		HtlcAddress:      "",
+		HtlcAddressP2Wsh: "",
+		HtlcAddressP2Tr:  "",
+		CostServer:       0,
+		CostOnchain:      0,
+		CostOffchain:     0,
+		LastHop:          []byte{},
+		OutgoingChanSet:  []uint64{},
+		Label:            "",
+	}, nil).AnyTimes()
+	return mockProvider
+}
+
+func createMockProviderInvalidSwap(mockCtrl *gomock.Controller) *provider.MockProvider {
+	mockProviderInvalid := provider.NewMockProvider(mockCtrl)
+
+	mockProviderInvalid.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.ReverseSubmarineSwapResponse{
+		SwapId: "1234",
+	}, nil).AnyTimes()
+
+	mockProviderInvalid.EXPECT().RequestSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(provider.SubmarineSwapResponse{
+		SwapId:            "1234",
+		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
+	}, nil).AnyTimes()
+
+	mockProviderInvalid.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
+		Amt:           0,
+		Id:            "",
+		IdBytes:       []byte{},
+		Type:          0,
+		State:         looprpc.SwapState_FAILED,
+		FailureReason: looprpc.FailureReason_FAILURE_REASON_OFFCHAIN,
+	}, nil).AnyTimes()
+
+	return mockProviderInvalid
+
+}
+
+func Test_monitorChannel(t *testing.T) {
+
+	mockCtrl := gomock.NewController(t)
+
+	type args struct {
+		info       MonitorChannelInfo
+		iterations int
+	}
+
+	channel := &lnrpc.Channel{
+		Active:        true,
+		RemotePubkey:  "1",
+		ChannelPoint:  "",
+		ChanId:        1,
+		Capacity:      1000,
+		LocalBalance:  900,
+		RemoteBalance: 100,
+	}
+
+	mockLightningClient := NewMockLightningClient(mockCtrl)
+
+	mockLightningClient.EXPECT().GetInfo(gomock.Any(), gomock.Any()).Return(&lnrpc.GetInfoResponse{
+		IdentityPubkey: "1",
+	}, nil).AnyTimes()
+
+	mockLightningClient.EXPECT().GetNodeInfo(gomock.Any(), gomock.Any()).Return(&lnrpc.NodeInfo{
+		Node: &lnrpc.LightningNode{
+			LastUpdate: 0,
+			PubKey:     "1",
+		},
+	}, nil).AnyTimes()
+
+	mockLightningClient.EXPECT().ListChannels(gomock.Any(), gomock.Any()).Return(&lnrpc.ListChannelsResponse{
+		Channels: []*lnrpc.Channel{
+			channel,
+		},
+	}, nil).AnyTimes()
+
+	// Liquidity rules for the channel
+	liquidityRules := map[uint64][]nodeguard.LiquidityRule{
+		channel.ChanId: {
+			{
+				ChannelId:            channel.ChanId,
+				NodePubkey:           "",
+				WalletId:             1,
+				MinimumLocalBalance:  20,
+				MinimumRemoteBalance: 80,
+				RebalanceTarget:      50,
+			},
+		},
+	}
+
+	//Mock nodeguard client
+	nodeguardClient := nodeguard.NewMockNodeGuardServiceClient(mockCtrl)
+
+	//Mock GetNewWalletAddress
+	nodeguardClient.EXPECT().GetNewWalletAddress(gomock.Any(), gomock.Any()).Return(&nodeguard.GetNewWalletAddressResponse{
+		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
+	}, nil).AnyTimes()
+
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "Monitor channel goroutine leak test invalid swap",
+			args: args{
+				info: MonitorChannelInfo{
+					channel:          channel,
+					nodeHost:         "",
+					lightningClient:  mockLightningClient,
+					context:          context.TODO(),
+					liquidationRules: liquidityRules,
+					swapClient:       provider.NewMockSwapClientClient(mockCtrl),
+					nodeguardClient:  nodeguardClient,
+					loopProvider:     createMockProviderInvalidSwap(mockCtrl),
+					loopdMacaroon:    "123",
+					nodeInfo:         lnrpc.GetInfoResponse{},
+				},
+				iterations: 4,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			for i := 0; i < tt.args.iterations; i++ {
+				go monitorChannel(tt.args.info)
+
+			}
+
+		})
+	}
+
+	// Wait for the goroutine to finish
+	time.Sleep(1 * time.Second)
 }

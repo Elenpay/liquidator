@@ -541,6 +541,17 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 
 	mockSwapClientSuccess.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
 
+	//List Swaps
+
+	mockSwapClientSuccess.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+
+				IdBytes: idBytes,
+			},
+		},
+	}, nil).AnyTimes()
+
 	//Failure Swap Client
 	mockSwapClientFailure := NewMockSwapClientClient(ctrl)
 
@@ -551,6 +562,27 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 	mockMonitorClient.EXPECT().Recv().Return(failureSwapStatus, nil).AnyTimes()
 
 	mockSwapClientFailure.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
+
+	mockSwapClientFailure.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{
+			{
+				IdBytes: idBytes,
+			},
+		},
+	}, nil).AnyTimes()
+
+	//Swap client for swap not found
+
+	//Failure Swap Client
+	mockSwapSwapNotFound := NewMockSwapClientClient(ctrl)
+
+	mockMonitorClient.EXPECT().Recv().Return(failureSwapStatus, nil).AnyTimes()
+
+	mockSwapSwapNotFound.EXPECT().Monitor(gomock.Any(), gomock.Any()).Return(mockMonitorClient, nil).AnyTimes()
+
+	mockSwapSwapNotFound.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
+		Swaps: []*looprpc.SwapStatus{},
+	}, nil).AnyTimes()
 
 	type args struct {
 		ctx        context.Context
@@ -585,6 +617,17 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 			},
 			want:    *swapStatus,
 			wantErr: false,
+		},
+		{
+			name: "MonitorSwap_SwapNotFound",
+			l:    &LoopProvider{},
+			args: args{
+				ctx:        context.TODO(),
+				swapId:     "1234",
+				swapClient: mockSwapSwapNotFound,
+			},
+			want:    looprpc.SwapStatus{},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
