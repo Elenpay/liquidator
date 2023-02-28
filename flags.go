@@ -62,7 +62,6 @@ func init() {
 	os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", os.ExpandEnv("$OTEL_EXPORTER_OTLP_ENDPOINT"))
 
 	//Remove http:// from the endpoint if present
-
 	if strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "http://") {
 		os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", strings.Replace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "http://", "", 1))
 	}
@@ -71,7 +70,7 @@ func init() {
 	if strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://") {
 		os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", strings.Replace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"), "https://", "", 1))
 	}
-	
+
 	os.Setenv("OTLP_RESOURCES_ATTRIBUTES", os.ExpandEnv("$OTLP_RESOURCES_ATTRIBUTES"))
 
 	viper.AutomaticEnv() // read in environment variables that match
