@@ -427,7 +427,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
 
 			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.LocalBalance - swapAmountTarget))
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
 			//Request nodeguard a new destination address for the reverse swap
 			walletRequest := &nodeguard.GetNewWalletAddressRequest{
