@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	//Tear up
 	initMetrics(prometheus.NewRegistry())
 
-	//Run tests and ve
+	//Run tests and verify goroutine leaks
 	goleak.VerifyTestMain(m)
 
 }
