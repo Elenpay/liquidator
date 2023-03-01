@@ -455,6 +455,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			//Monitor the swap
 			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+			if err != nil {
+				return err
+			}
 
 			if swapStatus.State == looprpc.SwapState_FAILED {
 				//Error log: The swap was failed
@@ -530,6 +533,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			//Monitor the swap
 			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+			if err != nil {
+				return err
+			}
 
 			if swapStatus.State == looprpc.SwapState_FAILED {
 				//Error log: The swap was failed
