@@ -163,7 +163,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 
 		if liquidationRules == nil || len(liquidationRules.LiquidityRules) == 0 {
 			log.Debugf("no liquidation rules found for node %v", pubkey)
-			time.Sleep(10 * time.Second)
+			time.Sleep(pollingInterval)
 			continue
 		}
 
@@ -183,7 +183,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 		}
 
 		//Sleep for 10 seconds
-		time.Sleep(10 * time.Second)
+		time.Sleep(pollingInterval)
 
 	}
 
@@ -268,7 +268,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 		if response == nil || len(response.Channels) == 0 {
 			log.Debugf("no channels found for node %v", info.nodeHost)
 
-			time.Sleep(1 * time.Second)
+			time.Sleep(pollingInterval)
 
 			continue
 		}
@@ -280,7 +280,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 		liquidationRules, err := rulesCache.GetLiquidityRules(nodePubKey)
 		if err != nil {
 			log.Debugf("failed to get liquidation rules from cache: %v for node %s", err, nodePubKey)
-			time.Sleep(1 * time.Second)
+			time.Sleep(pollingInterval)
 			continue
 		}
 
