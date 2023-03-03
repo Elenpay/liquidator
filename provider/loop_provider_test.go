@@ -609,7 +609,7 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 				swapId:     "1234",
 				swapClient: mockSwapClientFailure,
 			},
-			want:    *failureSwapStatus,
+			want:    *swapStatusFailure,
 			wantErr: false,
 		},
 	}
