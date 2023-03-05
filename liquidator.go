@@ -315,7 +315,7 @@ func monitorChannel(info MonitorChannelInfo) {
 	defer span.End()
 
 	//Add atrributes to span
-	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.Int64("channelId", int64(info.channel.GetChanId())))
+	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.Int64("chanId", int64(info.channel.GetChanId())))
 
 	spanId := span.SpanContext().SpanID().String()
 	traceId := span.SpanContext().TraceID().String()
@@ -447,11 +447,15 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				ReceiverBTCAddress: addrResponse.Address,
 			}
 
+			log.WithField("span", span).Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", swapRequest.SatsAmount, swapRequest.ReceiverBTCAddress)
+
 			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.WithField("span", span).Errorf("error performing reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+				log.WithField("span", span).Errorf("error requesting reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				return err
 			}
+
+			log.WithField("span", span).Infof("reverse swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
 			//Monitor the swap
 			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
@@ -494,11 +498,16 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				LastHopPubkey: channel.RemotePubkey,
 			}
 
+			//Log including channel.GetChanId() and swapAmount
+			log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(),channel.GetChanId())
+
 			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
-				log.WithField("span", span).Errorf("error performing swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+				log.WithField("span", span).Errorf("error requesting swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 				return err
 			}
+
+			log.WithField("span", span).Infof("submarine swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
 			if resp.InvoiceBTCAddress == "" {
 				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())

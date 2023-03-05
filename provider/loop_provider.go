@@ -20,8 +20,6 @@ type LoopProvider struct {
 // Submarine Swap L1->L2 based on loop (Loop In)
 func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request SubmarineSwapRequest, client looprpc.SwapClientClient) (SubmarineSwapResponse, error) {
 
-	log.Infof("requesting submarine swap with amount: %d sats", request.SatsAmount)
-
 	//Check that no sub swap is already in progress
 	err := checkSubmarineSwapNotInProgress(ctx, client)
 	if err != nil {
@@ -96,8 +94,6 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		SwapId:            swapId,
 		InvoiceBTCAddress: resp.GetHtlcAddressP2Wsh(),
 	}
-
-	log.Infof("submarine swap request successful. SwapId: %s Server message: %s", swapId, resp.GetServerMessage())
 
 	return response, nil
 
@@ -184,8 +180,6 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 // Reverse Submarine Swap L2->L1 based on loop (Loop Out)
 func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request ReverseSubmarineSwapRequest, client looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error) {
 
-	log.Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", request.SatsAmount, request.ReceiverBTCAddress)
-
 	//Check that no other swap is in progress
 	err := checkReverseSubmarineSwapNotInProgress(ctx, client, request)
 	if err != nil {
@@ -258,8 +252,6 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	response := ReverseSubmarineSwapResponse{
 		SwapId: swapId,
 	}
-
-	log.Infof("reverse submarine swap request successful. SwapId: %s Server message: %s", swapId, resp.GetServerMessage())
 
 	return response, nil
 
