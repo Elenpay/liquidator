@@ -11,6 +11,13 @@ func init() {
 
 	//add a hook to the logger to add the fields in the context
 	log.AddHook(&logrusContextHook{})
+
+	//If log level is debug
+	// Add this line for logging filename and line number!
+	if log.StandardLogger().GetLevel() == log.DebugLevel {
+		log.SetReportCaller(true)
+	}
+
 }
 
 type logrusContextHook struct {
