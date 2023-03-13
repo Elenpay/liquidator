@@ -315,7 +315,7 @@ func monitorChannel(info MonitorChannelInfo) {
 	defer span.End()
 
 	//Add atrributes to span
-	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.String("chanId", string(info.channel.GetChanId())))
+	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.String("chanId", fmt.Sprintf("%v", info.channel.GetChanId())))
 
 	spanId := span.SpanContext().SpanID().String()
 	traceId := span.SpanContext().TraceID().String()
