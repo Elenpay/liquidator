@@ -142,7 +142,12 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient, request ReverseSubmarineSwapRequest) error {
 
 	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
-	swaps, err := client.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
+	swapRequest := &looprpc.ListSwapsRequest{}
+
+	log.Debugf("request: %+v", request)
+	log.Debugf("context: %+v", ctx);
+
+	swaps, err := client.ListSwaps(ctx, swapRequest)
 	if err != nil {
 		log.Error(err)
 		return err
