@@ -37,12 +37,21 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 	}
 
+	//Use the client to request the swap
+	lastHopVertex, err := route.NewVertexFromStr(request.LastHopPubkey)
+	if err != nil {
+		return SubmarineSwapResponse{}, err
+	}
+
+	lastHopBytes := lastHopVertex[:]
+
 	//Do a quote for loop in
 	quote, err := client.GetLoopInQuote(ctx, &looprpc.QuoteRequest{
 		Amt: request.SatsAmount,
 		//ConfTarget:   1, //TODO Make this configurable
 		ExternalHtlc: true,
 		Private:      false,
+		LoopInLastHop: lastHopBytes,
 	})
 
 	if err != nil {
@@ -56,14 +65,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	log.Debugf("loop in quote: %+v", quote)
 	log.Debugf("loop in limits: %+v", limits)
 
-	//Use the client to request the swap
-	lastHopVertex, err := route.NewVertexFromStr(request.LastHopPubkey)
-	if err != nil {
-		return SubmarineSwapResponse{}, err
-	}
-
-	lastHopBytes := lastHopVertex[:]
-
+	
 	resp, err := client.LoopIn(ctx, &looprpc.LoopInRequest{
 		Amt:            request.SatsAmount,
 		MaxSwapFee:     int64(limits.maxSwapFee),
@@ -140,7 +142,12 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient, request ReverseSubmarineSwapRequest) error {
 
 	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
-	swaps, err := client.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
+	swapRequest := &looprpc.ListSwapsRequest{}
+
+	log.Debugf("request: %+v", request)
+	log.Debugf("context: %+v", ctx);
+
+	swaps, err := client.ListSwaps(ctx, swapRequest)
 	if err != nil {
 		log.Error(err)
 		return err
