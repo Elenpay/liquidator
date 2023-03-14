@@ -193,10 +193,10 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (float64, error) {
 
 	//Start span
-	spanCtx, span := otel.Tracer("monitorChannel").Start(spanCtx, "getChannelBalanceRatio")
+	_, span := otel.Tracer("monitorChannel").Start(spanCtx, "getChannelBalanceRatio")
 	defer span.End()
 
-	capacity := float64(channel.GetCapacity())
+	capacity := float64(channel.GetLocalBalance()+channel.GetRemoteBalance())
 
 	if capacity <= 0 {
 
