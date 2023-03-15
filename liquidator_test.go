@@ -277,6 +277,29 @@ func Test_monitorChannel(t *testing.T) {
 		RemoteBalance: 100,
 	}
 
+	//channel with htlcs
+	channelHtlcs := &lnrpc.Channel{	
+		Active:        true,
+		RemotePubkey:  "1",
+		ChannelPoint:  "",
+		ChanId:        1,
+		Capacity:      1000,
+		LocalBalance:  900,
+		RemoteBalance: 100,
+		PendingHtlcs: []*lnrpc.HTLC{
+			{
+				Incoming:            false,
+				Amount:              44,
+				HashLock:            []byte{},
+				ExpirationHeight:    0,
+				HtlcIndex:           0,
+				ForwardingChannel:   0,
+				ForwardingHtlcIndex: 0,
+			},
+		},
+	}
+			
+
 	mockLightningClient := NewMockLightningClient(mockCtrl)
 
 	mockLightningClient.EXPECT().GetInfo(gomock.Any(), gomock.Any()).Return(&lnrpc.GetInfoResponse{
@@ -318,6 +341,27 @@ func Test_monitorChannel(t *testing.T) {
 		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
 
+	//lightning client mock 
+	mockLightningClientWithHTLCs := NewMockLightningClient(mockCtrl)
+
+	//Mock list channels with htlcs
+	mockLightningClientWithHTLCs.EXPECT().ListChannels(gomock.Any(), gomock.Any()).Return(&lnrpc.ListChannelsResponse{
+		Channels: []*lnrpc.Channel{
+			channelHtlcs,
+		},
+	}, nil).AnyTimes()
+
+	mockLightningClientWithHTLCs.EXPECT().GetInfo(gomock.Any(), gomock.Any()).Return(&lnrpc.GetInfoResponse{
+		IdentityPubkey: "1",
+	}, nil).AnyTimes()
+
+	mockLightningClientWithHTLCs.EXPECT().GetNodeInfo(gomock.Any(), gomock.Any()).Return(&lnrpc.NodeInfo{
+		Node: &lnrpc.LightningNode{
+			LastUpdate: 0,
+			PubKey:     "1",
+		},
+	}, nil).AnyTimes()
+
 	tests := []struct {
 		name string
 		args args
@@ -335,6 +379,24 @@ func Test_monitorChannel(t *testing.T) {
 					nodeguardClient:  nodeguardClient,
 					loopProvider:     createMockProviderInvalidSwap(mockCtrl),
 					loopdMacaroon:    "123",
+					nodeInfo:         lnrpc.GetInfoResponse{},
+				},
+				iterations: 4,
+			},
+		},
+		{
+			name: "Monitor channel with ongoing htlc",
+			args: args{
+				info:       MonitorChannelInfo{
+					channel:          channelHtlcs,
+					nodeHost:         "",
+					lightningClient:  mockLightningClientWithHTLCs,
+					context:          context.TODO(),
+					liquidationRules: map[uint64][]nodeguard.LiquidityRule{},
+					swapClient:       provider.NewMockSwapClientClient(mockCtrl),
+					nodeguardClient:  nodeguardClient,
+					loopProvider:     &provider.LoopProvider{},
+					loopdMacaroon:    "",
 					nodeInfo:         lnrpc.GetInfoResponse{},
 				},
 				iterations: 4,

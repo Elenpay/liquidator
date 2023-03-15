@@ -196,7 +196,7 @@ func getChannelBalanceRatio(channel *lnrpc.Channel, spanCtx context.Context) (fl
 	_, span := otel.Tracer("monitorChannel").Start(spanCtx, "getChannelBalanceRatio")
 	defer span.End()
 
-	capacity := float64(channel.GetLocalBalance()+channel.GetRemoteBalance())
+	capacity := float64(channel.GetLocalBalance() + channel.GetRemoteBalance() + channel.GetUnsettledBalance())
 
 	if capacity <= 0 {
 
@@ -314,15 +314,15 @@ func monitorChannel(info MonitorChannelInfo) {
 	spanCtx, span := otel.Tracer("monitorChannel").Start(info.context, "monitorChannel")
 	defer span.End()
 
+	//Record the channel balance in a prometheus gauge
+	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 	//Add atrributes to span
-	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.String("chanId", fmt.Sprintf("%v", info.channel.GetChanId())))
+	span.SetAttributes(attribute.String("nodeHost", info.nodeHost), attribute.String("chanId", fmt.Sprintf("%v", info.channel.GetChanId())), attribute.Float64("channelBalanceRatio", channelBalanceRatio))
 
 	spanId := span.SpanContext().SpanID().String()
 	traceId := span.SpanContext().TraceID().String()
 
 	log.WithField("span", span).Debugf("monitorChannel SpanId: %v TraceId: %v", spanId, traceId)
-	//Record the channel balance in a prometheus gauge
-	channelBalanceRatio, err := getChannelBalanceRatio(info.channel, spanCtx)
 
 	if err != nil {
 		span.RecordError(err)
@@ -335,18 +335,22 @@ func monitorChannel(info MonitorChannelInfo) {
 
 	channelRules := info.liquidationRules[info.channel.GetChanId()]
 
-	//Manage liquidity
-	err = manageChannelLiquidity(ManageChannelLiquidityInfo{
-		channel:             info.channel,
-		channelBalanceRatio: channelBalanceRatio,
-		channelRules:        &channelRules,
-		swapClientClient:    info.swapClient,
-		nodeguardClient:     info.nodeguardClient,
-		loopProvider:        info.loopProvider,
-		loopdMacaroon:       info.loopdMacaroon,
-		nodeInfo:            info.nodeInfo,
-		ctx:                 spanCtx,
-	})
+	if len(info.channel.PendingHtlcs) == 0 {
+		//Manage liquidity if there are no pending htlcs
+		err = manageChannelLiquidity(ManageChannelLiquidityInfo{
+			channel:             info.channel,
+			channelBalanceRatio: channelBalanceRatio,
+			channelRules:        &channelRules,
+			swapClientClient:    info.swapClient,
+			nodeguardClient:     info.nodeguardClient,
+			loopProvider:        info.loopProvider,
+			loopdMacaroon:       info.loopdMacaroon,
+			nodeInfo:            info.nodeInfo,
+			ctx:                 spanCtx,
+		})
+	} else {
+		log.WithField("span", span).Debugf("channel: %v has pending htlcs, skipping liquidity management", info.channel.GetChanId())
+	}
 
 	if err != nil {
 
@@ -407,7 +411,8 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		swapTargetRatio = rule.RebalanceTarget
 	}
 
-	var swapAmountTarget int64 = int64(float64(channel.GetCapacity()) * float64(swapTargetRatio))
+	channelRealCapacity := channel.GetLocalBalance() + channel.GetRemoteBalance() + channel.GetUnsettledBalance()
+	var swapAmountTarget int64 = int64(float64(channelRealCapacity) * float64(swapTargetRatio))
 
 	loopdCtx, err := helper.GenerateContextWithMacaroon(info.loopdMacaroon, info.ctx)
 	if err != nil {
@@ -416,7 +421,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	switch {
 
-	case info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
+	case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 		{
 			//If the balance ratio is below the minimum threshold, perform a reverse swap to increase the local balance
 
@@ -480,7 +485,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			}
 
 		}
-	case info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
+	case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
 		{
 			//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
 
@@ -499,7 +504,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			}
 
 			//Log including channel.GetChanId() and swapAmount
-			log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(),channel.GetChanId())
+			log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(), channel.GetChanId())
 
 			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
 			if err != nil {
