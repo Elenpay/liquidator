@@ -278,7 +278,7 @@ func Test_monitorChannel(t *testing.T) {
 	}
 
 	//channel with htlcs
-	channelHtlcs := &lnrpc.Channel{	
+	channelHtlcs := &lnrpc.Channel{
 		Active:        true,
 		RemotePubkey:  "1",
 		ChannelPoint:  "",
@@ -298,7 +298,6 @@ func Test_monitorChannel(t *testing.T) {
 			},
 		},
 	}
-			
 
 	mockLightningClient := NewMockLightningClient(mockCtrl)
 
@@ -341,7 +340,7 @@ func Test_monitorChannel(t *testing.T) {
 		Address: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
 
-	//lightning client mock 
+	//lightning client mock
 	mockLightningClientWithHTLCs := NewMockLightningClient(mockCtrl)
 
 	//Mock list channels with htlcs
@@ -387,7 +386,7 @@ func Test_monitorChannel(t *testing.T) {
 		{
 			name: "Monitor channel with ongoing htlc",
 			args: args{
-				info:       MonitorChannelInfo{
+				info: MonitorChannelInfo{
 					channel:          channelHtlcs,
 					nodeHost:         "",
 					lightningClient:  mockLightningClientWithHTLCs,
