@@ -560,7 +560,6 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 	//Mock SwapInfo method
 	mockSwapClientFailure.EXPECT().SwapInfo(gomock.Any(), gomock.Any()).Return(swapStatusFailure, nil).AnyTimes()
 
-
 	mockSwapClientFailure.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
 		Swaps: []*looprpc.SwapStatus{
 			{

@@ -49,8 +49,8 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	quote, err := client.GetLoopInQuote(ctx, &looprpc.QuoteRequest{
 		Amt: request.SatsAmount,
 		//ConfTarget:   1, //TODO Make this configurable
-		ExternalHtlc: true,
-		Private:      false,
+		ExternalHtlc:  true,
+		Private:       false,
 		LoopInLastHop: lastHopBytes,
 	})
 
@@ -65,7 +65,6 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	log.Debugf("loop in quote: %+v", quote)
 	log.Debugf("loop in limits: %+v", limits)
 
-	
 	resp, err := client.LoopIn(ctx, &looprpc.LoopInRequest{
 		Amt:            request.SatsAmount,
 		MaxSwapFee:     int64(limits.maxSwapFee),
@@ -145,7 +144,7 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 	swapRequest := &looprpc.ListSwapsRequest{}
 
 	log.Debugf("swapRequest: %+v", swapRequest)
-	log.Debugf("context: %+v", ctx);
+	log.Debugf("context: %+v", ctx)
 
 	swaps, err := client.ListSwaps(ctx, swapRequest)
 	if err != nil {
