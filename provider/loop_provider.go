@@ -91,9 +91,15 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 	log.Debugf("submarine swap response: %+v", resp)
 	//Return the response
 
+	htlcAddress := resp.GetHtlcAddressP2Tr()
+
+	if htlcAddress == "" {
+		htlcAddress = resp.GetHtlcAddressP2Wsh()
+	}
+
 	response := SubmarineSwapResponse{
 		SwapId:            swapId,
-		InvoiceBTCAddress: resp.GetHtlcAddressP2Wsh(),
+		InvoiceBTCAddress: htlcAddress,
 	}
 
 	return response, nil
