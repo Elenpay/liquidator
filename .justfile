@@ -38,7 +38,7 @@ loopin sats='1000000':
 loopout chanid sats='500000' :
     just loop out --amt {{sats}} --channel {{chanid}} -v --fast
 unzip-loopd-datadir:
-    rm -rf .loop; unzip loopd.zip; rm -rf .loop/regtest/loop.db
+    rm -rf .loop; unzip -d .loopd loopd.zip; rm -rf .loop/regtest/loop.db
 mine:
     while true; do docker exec polar-n1-backend1 bitcoin-cli -regtest -rpcuser=polaruser -rpcpassword=polarpass -generate 1; sleep 60; done
 
