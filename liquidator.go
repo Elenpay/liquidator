@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"sync"
@@ -514,7 +515,42 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			log.WithField("span", span).Infof("submarine swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
-			if resp.InvoiceBTCAddress == "" {
+			
+			invoiceAddress := resp.InvoiceBTCAddress
+
+			//Retry for 10 times to try to get the invoice btc address if for some reason it was empty
+			if invoiceAddress == "" && resp.SwapId != "" {
+
+				//While the swap htlc address is not set, retry 10 times, each time exponentially increasing the time between retries
+				for i := 0; i < 10; i++ {
+					//Get the swap status
+
+					swapStatus, err := info.loopProvider.GetSwapStatus(loopdCtx, resp.SwapId, info.swapClientClient)
+
+					if err != nil {
+						return err
+					}
+
+					if swapStatus.HtlcAddressP2Wsh != "" || swapStatus.HtlcAddressP2Tr != "" {
+						//The swap htlc address is set, break the loop
+
+						if swapStatus.HtlcAddressP2Tr != "" {
+							invoiceAddress = swapStatus.HtlcAddressP2Tr
+						} else {
+							invoiceAddress = swapStatus.HtlcAddressP2Wsh
+						}
+
+						break
+					}
+
+					//Sleep for 2^i seconds
+					time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+
+				}
+
+			}
+			
+			if invoiceAddress == "" {
 				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Errorf("error performing swap: %v", err)
 				return err
