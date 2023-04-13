@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/lightninglabs/loop/looprpc"
@@ -371,8 +372,9 @@ func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
 				Type:             looprpc.SwapType_LOOP_IN,
 				State:            looprpc.SwapState_INITIATED,
 				FailureReason:    0,
-				InitiationTime:   0,
-				LastUpdateTime:   0,
+				//InitiationTime 4 hours ago
+				InitiationTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
+				LastUpdateTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
 				HtlcAddress:      "",
 				HtlcAddressP2Wsh: "",
 				HtlcAddressP2Tr:  "",
@@ -389,7 +391,28 @@ func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
 	//Swap client with ListSwaps returning no swaps
 	swapClientWithNoOngoingSwaps := NewMockSwapClientClient(ctrl)
 	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{},
+		Swaps: []*looprpc.SwapStatus{
+			{
+				Amt:              0,
+				Id:               "",
+				IdBytes:          idBytes,
+				Type:             looprpc.SwapType_LOOP_IN,
+				State:            looprpc.SwapState_INITIATED,
+				FailureReason:    0,
+				//InitiationTime is more than 24 hours ago, stuck but ignored
+				InitiationTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
+				LastUpdateTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
+				HtlcAddress:      "",
+				HtlcAddressP2Wsh: "",
+				HtlcAddressP2Tr:  "",
+				CostServer:       0,
+				CostOnchain:      0,
+				CostOffchain:     0,
+				LastHop:          []byte{},
+				OutgoingChanSet:  []uint64{},
+				Label:            "",
+			},
+		},
 	}, nil).AnyTimes()
 
 	type args struct {

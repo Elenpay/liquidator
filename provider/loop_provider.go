@@ -116,10 +116,10 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 		return err
 	}
 
-	//Filter swaps of Loop In type
+	//Filter swaps of Loop In type and which are not older than 24 hours (to avoid old swaps stuck in INITIATED or HTLC_PUBLISHED state to prevent new swaps)
 	var loopInSwaps []*looprpc.SwapStatus
 	for _, swap := range swaps.Swaps {
-		if swap.Type == looprpc.SwapType_LOOP_IN {
+		if swap.Type == looprpc.SwapType_LOOP_IN && time.Since(time.Unix(0, swap.InitiationTime)) < 24*time.Hour {
 			loopInSwaps = append(loopInSwaps, swap)
 		}
 	}
@@ -127,7 +127,7 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
 	for _, swap := range loopInSwaps {
 		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
-			//Create error  of Swap already in progress
+			//Create error of Swap already in progress
 
 			id := hex.EncodeToString(swap.GetIdBytes())
 			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
