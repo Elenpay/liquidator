@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/Elenpay/liquidator/lndconnect"
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -16,13 +17,15 @@ import (
 )
 
 // Generates the gRPC lightning client∏
-func CreateLightningClient(nodeEndpoint string, tlsCertEncoded string) (lnrpc.LightningClient, *grpc.ClientConn, error) {
-	creds, err := generateCredentials(tlsCertEncoded)
+func CreateLightningClient(lndConnectParams lndconnect.LndConnectParams) (lnrpc.LightningClient, *grpc.ClientConn, error) {
+	creds, err := generateCredentials(lndConnectParams.Cert)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	conn, err := getConn(nodeEndpoint, creds)
+	endpoint := fmt.Sprintf("%s:%s", lndConnectParams.Host, lndConnectParams.Port)
+
+	conn, err := getConn(endpoint, creds)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -33,13 +36,16 @@ func CreateLightningClient(nodeEndpoint string, tlsCertEncoded string) (lnrpc.Li
 }
 
 // Creates the SwapClient client similar to CreateLightningClient function
-func CreateSwapClientClient(loopdEndpoint string, tlsCertEncoded string) (looprpc.SwapClientClient, *grpc.ClientConn, error) {
+func CreateSwapClientClient(lndConnectParams lndconnect.LndConnectParams) (looprpc.SwapClientClient, *grpc.ClientConn, error) {
 
-	creds, err := generateCredentials(tlsCertEncoded)
+	creds, err := generateCredentials(lndConnectParams.Cert)
 	if err != nil {
 		return nil, nil, err
 	}
-	conn, err := getConn(loopdEndpoint, creds)
+
+	endpoint := fmt.Sprintf("%s:%s", lndConnectParams.Host, lndConnectParams.Port)
+
+	conn, err := getConn(endpoint, creds)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,28 +85,22 @@ func getConn(nodeEndpoint string, creds credentials.TransportCredentials) (*grpc
 }
 
 // Generates gRPC credentials for the clients
-func generateCredentials(tlsCertEncoded string) (credentials.TransportCredentials, error) {
-	//Generate TLS credentials from directory
-	tlsCertDecoded, err := base64.StdEncoding.DecodeString(tlsCertEncoded)
+func generateCredentials(certDer string) (credentials.TransportCredentials, error) {
+
+	base64decoded, err := base64.RawURLEncoding.DecodeString(certDer)
 	if err != nil {
-
-		err := fmt.Errorf("Failed to decode TLS cert: %v", err)
-		log.Error(err)
-		return nil, err
+		log.Errorf("Failed to decode base64 string")
+		return nil, fmt.Errorf("failed to decode base64 string")
 	}
-
 	cp := x509.NewCertPool()
-	if !cp.AppendCertsFromPEM(tlsCertDecoded) {
-		err := fmt.Errorf("Failed to append certificates")
-		log.Error(err)
+	cert, err := x509.ParseCertificate(base64decoded)
+	if err != nil {
+		log.Errorf("Failed to parse certificate")
+		return nil, fmt.Errorf("failed to parse certificate")
 	}
+	cp.AddCert(cert)
 
 	creds := credentials.NewClientTLSFromCert(cp, "")
-
-	if err != nil {
-		log.Errorf("Failed to create ClientTLS from credentials %v", err)
-		return nil, err
-	}
 
 	return creds, nil
 

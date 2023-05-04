@@ -12,6 +12,7 @@ import (
 	"github.com/Elenpay/liquidator/cache"
 	"github.com/Elenpay/liquidator/errors"
 	"github.com/Elenpay/liquidator/helper"
+	"github.com/Elenpay/liquidator/lndconnect"
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/Elenpay/liquidator/rpc"
@@ -62,16 +63,18 @@ func startLiquidator() {
 
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
-	for i, nodeEndpoint := range nodesHosts {
+	for i, lndconnectURI := range lndconnectURIs {
 
-		log.Infof("starting monitoring for node: %v", nodeEndpoint)
+		//parse lndconnectURI
+		lndConnectParams, err := lndconnect.Parse(lndconnectURI)
+		if err != nil {
+			log.Fatalf("failed to parse lndconnectURI: %v", err)
+		}
 
-		nodeTLSCertEncoded := nodesTLSCerts[i]
-
-		loopdTLSCertEncoded := loopdTLSCerts[i]
+		log.Infof("starting monitoring for node: %v:%v", lndConnectParams.Host, lndConnectParams.Port)
 
 		//Create a lightning client to connect to the node
-		lightningClient, conn, err := rpc.CreateLightningClient(nodeEndpoint, nodeTLSCertEncoded)
+		lightningClient, conn, err := rpc.CreateLightningClient(lndConnectParams)
 		if err != nil {
 			log.Fatalf("failed to create lightning client: %v", err)
 		}
@@ -80,9 +83,8 @@ func startLiquidator() {
 		//TODO Add support for multiple providers in the future
 
 		//Create SwapClient to communicate with loopd
-		loopdHost := loopdHosts[i]
 
-		swapClient, swapConn, err := rpc.CreateSwapClientClient(loopdHost, loopdTLSCertEncoded)
+		swapClient, swapConn, err := rpc.CreateSwapClientClient(lndConnectParams)
 		if err != nil {
 			log.Fatalf("failed to create swap client: %v", err)
 		}
@@ -101,10 +103,10 @@ func startLiquidator() {
 
 		//Macaroon of the lnd node
 
-		nodeMacaroon := nodesMacaroons[i]
+		nodeMacaroon := lndConnectParams.Macaroon
 
 		if nodeMacaroon == "" {
-			log.Fatalf("no macaroon provided for node %v", nodeEndpoint)
+			log.Fatalf("no macaroon provided for node %v", lndconnectURI)
 		}
 
 		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon, context.Background())
@@ -114,7 +116,13 @@ func startLiquidator() {
 
 		//Macaroon of the loopd of this lnd node
 		//TODO Make this optional when loop is not the provider
-		loopdMacaroon := loopdMacaroons[i]
+		loopdConnectParams, err := lndconnect.Parse(loopdconnectURIs[i])
+		if err != nil {
+			log.Fatalf("failed to parse loopdconnectURI: %v", err)
+		}
+
+		loopdHost := fmt.Sprintf("%v:%v", loopdConnectParams.Host, loopdConnectParams.Port)
+		loopdMacaroon := loopdConnectParams.Macaroon
 
 		if loopdMacaroon == "" {
 			log.Fatalf("no macaroon provided for loopd %v", loopdHost)
@@ -133,7 +141,7 @@ func startLiquidator() {
 
 		//Start a goroutine to monitor the channels of the node
 		go monitorChannels(MonitorChannelsInfo{
-			nodeHost:        nodeEndpoint,
+			nodeHost:        lndconnectURI,
 			nodeInfo:        nodeInfo,
 			nodeMacaroon:    nodeMacaroon,
 			loopdMacaroon:   loopdMacaroon,
@@ -515,7 +523,6 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			log.WithField("span", span).Infof("submarine swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
-			
 			invoiceAddress := resp.InvoiceBTCAddress
 
 			//Retry for 10 times to try to get the invoice btc address if for some reason it was empty
@@ -549,7 +556,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				}
 
 			}
-			
+
 			if invoiceAddress == "" {
 				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 				log.WithField("span", span).Errorf("error performing swap: %v", err)
