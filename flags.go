@@ -96,14 +96,12 @@ func init() {
 	rootCmd.Flags().String("nodeguardHost", "", "Hostname:port to connect to nodeguard")
 	viper.BindPFlag("nodeguardHost", rootCmd.Flags().Lookup("nodeguardHost"))
 
-
-
 	//Now we set the global vars
 
 	pollingInterval = viper.GetDuration("pollingInterval")
 	nodeguardHost = viper.GetString("nodeguardHost")
-	loopdconnectURIs= strings.Split(viper.GetString("loopdconnecturis"),",")
-	lndconnectURIs= strings.Split(viper.GetString("lndconnecturis"),",")
+	loopdconnectURIs = strings.Split(viper.GetString("loopdconnecturis"), ",")
+	lndconnectURIs = strings.Split(viper.GetString("lndconnecturis"), ",")
 	//Set log level and format
 
 	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))
