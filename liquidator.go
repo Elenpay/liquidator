@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -36,7 +37,10 @@ var (
 func startLiquidator() {
 
 	//Init opentelemetry tracer
-	initTracer(context.TODO())
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {
+
+		initTracer(context.TODO())
+	}
 
 	var wg = &sync.WaitGroup{}
 
