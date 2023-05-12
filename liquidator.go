@@ -75,7 +75,21 @@ func startLiquidator() {
 			log.Fatalf("failed to parse lndconnectURI: %v", err)
 		}
 
-		log.Infof("starting monitoring for node: %v:%v", lndConnectParams.Host, lndConnectParams.Port)
+		//Macaroon of the loopd of this lnd node
+		//TODO Make this optional when loop is not the provider
+		loopdConnectParams, err := lndconnect.Parse(loopdconnectURIs[i])
+		if err != nil {
+			log.Fatalf("failed to parse loopdconnectURI: %v", err)
+		}
+
+		loopdHost := fmt.Sprintf("%v:%v", loopdConnectParams.Host, loopdConnectParams.Port)
+		loopdMacaroon := loopdConnectParams.Macaroon
+
+		if loopdMacaroon == "" {
+			log.Fatalf("no macaroon provided for loopd %v", loopdHost)
+		}
+
+		log.Infof("starting monitoring for node: %v:%v loopd on %v", lndConnectParams.Host, lndConnectParams.Port, loopdHost)
 
 		//Create a lightning client to connect to the node
 		lightningClient, conn, err := rpc.CreateLightningClient(lndConnectParams)
@@ -88,7 +102,7 @@ func startLiquidator() {
 
 		//Create SwapClient to communicate with loopd
 
-		swapClient, swapConn, err := rpc.CreateSwapClientClient(lndConnectParams)
+		swapClient, swapConn, err := rpc.CreateSwapClientClient(loopdConnectParams)
 		if err != nil {
 			log.Fatalf("failed to create swap client: %v", err)
 		}
@@ -118,19 +132,6 @@ func startLiquidator() {
 			log.Fatal("failed to generate context with macaroon")
 		}
 
-		//Macaroon of the loopd of this lnd node
-		//TODO Make this optional when loop is not the provider
-		loopdConnectParams, err := lndconnect.Parse(loopdconnectURIs[i])
-		if err != nil {
-			log.Fatalf("failed to parse loopdconnectURI: %v", err)
-		}
-
-		loopdHost := fmt.Sprintf("%v:%v", loopdConnectParams.Host, loopdConnectParams.Port)
-		loopdMacaroon := loopdConnectParams.Macaroon
-
-		if loopdMacaroon == "" {
-			log.Fatalf("no macaroon provided for loopd %v", loopdHost)
-		}
 
 		//Get the local node info
 		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeContext)

@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 lightninglabs/loopserver:v0.9.94-beta
+FROM --platform=linux/amd64 lightninglabs/loopserver:v0.9.123-beta
 
 COPY regtest.polar/volumes/lnd/alice /root/.lnd
 

@@ -20,8 +20,9 @@ services:
       - "--lnd.tlspath=/home/loopserver/.lnd/tls.cert"
       - "--bitcoin.host=alice:18443"
       - "--bitcoin.user=polaruser"
-      - "--bitcoin.password=polaruser"
-      - "--bitcoin.httppostmode"
+      - "--bitcoin.password=polarpass"
+      - "--bitcoin.zmqpubrawblock=tcp://alice:28334"
+      - "--bitcoin.zmqpubrawtx=tcp://alice:29335"
     volumes:
       - ./regtest.polar/volumes/lnd/alice:/home/loopserver/.lnd
 
