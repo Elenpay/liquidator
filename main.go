@@ -31,14 +31,10 @@ const (
 )
 
 var (
-	nodesHosts      []string
-	nodesMacaroons  []string
-	nodesTLSCerts   []string
-	pollingInterval time.Duration // Parseable by time.ParseDuration
-	nodeguardHost   string
-	loopdHosts      []string
-	loopdMacaroons  []string
-	loopdTLSCerts   []string
+	lndconnectURIs   []string
+	loopdconnectURIs []string
+	pollingInterval  time.Duration // Parseable by time.ParseDuration
+	nodeguardHost    string
 )
 
 func main() {

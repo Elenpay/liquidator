@@ -79,7 +79,7 @@ func newResource() *resource.Resource {
 		resource.WithFromEnv(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to detect environment resource: %v", err)
+		log.Errorf("Failed to detect environment resource: %v", err)
 	}
 
 	return r
@@ -108,7 +108,7 @@ func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
 	// span exporter
 	exp, err := spanExporter()
 	if err != nil {
-		log.Fatal("failed to initialize Span exporter")
+		log.Errorf("failed to initialize Span exporter")
 	}
 
 	otel.SetTracerProvider(

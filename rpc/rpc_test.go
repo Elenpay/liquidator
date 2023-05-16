@@ -2,10 +2,12 @@ package rpc
 
 import (
 	"testing"
+
+	"github.com/Elenpay/liquidator/lndconnect"
 )
 
 func getTlsCertEncoded() string {
-	return "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMyVENDQW42Z0F3SUJBZ0lSQUxTdHNXanBQdUplajVTYURMNHRlTTB3Q2dZSUtvWkl6ajBFQXdJd09qRWcKTUI0R0ExVUVDaE1YYkc5dmNDQmhkWFJ2WjJWdVpYSmhkR1ZrSUdObGNuUXhGakFVQmdOVkJBTVREVVJ2YjIxdApZV011Ykc5allXd3dIaGNOTWpNd01qQXhNVGd5TWpJeFdoY05NalF3TXpJNE1UZ3lNakl4V2pBNk1TQXdIZ1lEClZRUUtFeGRzYjI5d0lHRjFkRzluWlc1bGNtRjBaV1FnWTJWeWRERVdNQlFHQTFVRUF4TU5SRzl2YlcxaFl5NXMKYjJOaGJEQlpNQk1HQnlxR1NNNDlBZ0VHQ0NxR1NNNDlBd0VIQTBJQUJQSzFZL21uRjN4V1FYbUtuTWcwTkNFRgpncDlhclQwOXR0c3N6cFZYTENRYXU1WWNyMmI4T0xKNEtCMytCMlhkTXNneW5Tc1pabU5tejNaV1k4MXNIWFNqCmdnRmpNSUlCWHpBT0JnTlZIUThCQWY4RUJBTUNBcVF3RXdZRFZSMGxCQXd3Q2dZSUt3WUJCUVVIQXdFd0R3WUQKVlIwVEFRSC9CQVV3QXdFQi96QWRCZ05WSFE0RUZnUVU4YVVrTzd5U3lRSE9VeXNlbWppRlFDNUZobVF3Z2dFRwpCZ05WSFJFRWdmNHdnZnVDRFVSdmIyMXRZV011Ykc5allXeUNDV3h2WTJGc2FHOXpkSUlFZFc1cGVJSUtkVzVwCmVIQmhZMnRsZElJSFluVm1ZMjl1Ym9jRWZ3QUFBWWNRQUFBQUFBQUFBQUFBQUFBQUFBQUFBWWNRL29BQUFBQUEKQUFBQUFBQUFBQUFBQVljUS9vQUFBQUFBQUFCVWdsci8vdm9TV29jUS9vQUFBQUFBQUFCVWdsci8vdm9TVzRjUQovb0FBQUFBQUFBQlVnbHIvL3ZvU1hJY1Evb0FBQUFBQUFBQVlUY0hDcWZiMWFJY0V3S2dCMVljUS9vQUFBQUFBCkFBQ1lNQUQvL3MrNVhZY0VDcEN0TzRjUS9vQUFBQUFBQUFDQnZ1NUFkcS9LMzRjUS9vQUFBQUFBQUFET2dRc2MKdlN3R25vY1Evb0FBQUFBQUFBQldOeGNhbXk5a1F6QUtCZ2dxaGtqT1BRUURBZ05KQURCR0FpRUFvcFB6MnpuSgpleXFoWlhHc2VRbEZrblg5Qis5a2xyU0pUOVdpYzR0bDloMENJUUNSd1diMzNITnNlNnI3R1dPckhlNGZ4YWlVCkE4MUU4WlM1NHNIM25OU1YzQT09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+	return "MIICJTCCAcygAwIBAgIQLYfp6m1vP9wFBXOcE-UsaDAKBggqhkjOPQQDAjAxMR8wHQYDVQQKExZsbmQgYXV0b2dlbmVyYXRlZCBjZXJ0MQ4wDAYDVQQDEwVjYXJvbDAeFw0yMzAzMjkxNTM4MjBaFw0yNDA1MjMxNTM4MjBaMDExHzAdBgNVBAoTFmxuZCBhdXRvZ2VuZXJhdGVkIGNlcnQxDjAMBgNVBAMTBWNhcm9sMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcXT4dekJnAiZWd8Pk3FgL1BSFXMRwLGSAlk7Di5hIJnIA1B_o8RWKzlPz7u3Aw5mmWHhN8B2MWMylWlWB2130KOBxTCBwjAOBgNVHQ8BAf8EBAMCAqQwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDwYDVR0TAQH_BAUwAwEB_zAdBgNVHQ4EFgQUDOS-19_0LFGf62WRyaaUSLc3j98wawYDVR0RBGQwYoIFY2Fyb2yCCWxvY2FsaG9zdIIFY2Fyb2yCDnBvbGFyLW4xLWNhcm9sggR1bml4ggp1bml4cGFja2V0ggdidWZjb25uhwR_AAABhxAAAAAAAAAAAAAAAAAAAAABhwSsFQAFMAoGCCqGSM49BAMCA0cAMEQCHxYe59PCXrTtSmGsOjfQo6V-sS8j73cqWOzTQbvgI3gCIQCj7sOxnZWBwilec7t8bBXjwPgX9frv8408JW4QhNFOUg"
 }
 
 func TestCreateNodeGuardClient(t *testing.T) {
@@ -51,8 +53,7 @@ func TestCreateLightningClient(t *testing.T) {
 	tlsCertEncoded := getTlsCertEncoded()
 
 	type args struct {
-		nodeEndpoint   string
-		tlsCertEncoded string
+		lndconnectParams lndconnect.LndConnectParams
 	}
 	tests := []struct {
 		name    string
@@ -62,15 +63,19 @@ func TestCreateLightningClient(t *testing.T) {
 		{
 			name: "CreateLightningClient_Success",
 			args: args{
-				nodeEndpoint:   "test:10001",
-				tlsCertEncoded: tlsCertEncoded,
+				lndconnectParams: lndconnect.LndConnectParams{
+					Host:     "localhost",
+					Port:     "10009",
+					Cert:     tlsCertEncoded,
+					Macaroon: "0201036c6e6402f801030a101ec5b6370c166f6c8e2853164109145a1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e6572617465120472656164000006208e957e78ec39e7810fad25cfc43850b8e9e7c079843b8ec7bb5522bba12230d6",
+				},
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := CreateLightningClient(tt.args.nodeEndpoint, tt.args.tlsCertEncoded)
+			got, got1, err := CreateLightningClient(tt.args.lndconnectParams)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateLightningClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -92,8 +97,7 @@ func TestCreateSwapClientClient(t *testing.T) {
 	tlsCertEncoded := getTlsCertEncoded()
 
 	type args struct {
-		loopdEndpoint  string
-		tlsCertEncoded string
+		lndconnectParams lndconnect.LndConnectParams
 	}
 	tests := []struct {
 		name    string
@@ -103,15 +107,20 @@ func TestCreateSwapClientClient(t *testing.T) {
 		{
 			name: "CreateSwapClientClient_Success",
 			args: args{
-				loopdEndpoint:  "test:11001",
-				tlsCertEncoded: tlsCertEncoded,
+				lndconnectParams: lndconnect.LndConnectParams{
+					Host:     "localhost",
+					Port:     "11010",
+					Cert:     tlsCertEncoded,
+					Macaroon: "0201036c6e6402f801030a101ec5b6370c166f6c8e2853164109145a1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e6572617465120472656164000006208e957e78ec39e7810fad25cfc43850b8e9e7c079843b8ec7bb5522bba12230d6",
+				},
+				
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := CreateSwapClientClient(tt.args.loopdEndpoint, tt.args.tlsCertEncoded)
+			got, got1, err := CreateSwapClientClient(tt.args.lndconnectParams)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateSwapClientClient() error = %v, wantErr %v", err, tt.wantErr)
 				return
