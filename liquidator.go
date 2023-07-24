@@ -132,7 +132,6 @@ func startLiquidator() {
 			log.Fatal("failed to generate context with macaroon")
 		}
 
-
 		//Get the local node info
 		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeContext)
 		if err != nil {
@@ -349,22 +348,18 @@ func monitorChannel(info MonitorChannelInfo) {
 
 	channelRules := info.liquidationRules[info.channel.GetChanId()]
 
-	if len(info.channel.PendingHtlcs) == 0 {
-		//Manage liquidity if there are no pending htlcs
-		err = manageChannelLiquidity(ManageChannelLiquidityInfo{
-			channel:             info.channel,
-			channelBalanceRatio: channelBalanceRatio,
-			channelRules:        &channelRules,
-			swapClientClient:    info.swapClient,
-			nodeguardClient:     info.nodeguardClient,
-			loopProvider:        info.loopProvider,
-			loopdMacaroon:       info.loopdMacaroon,
-			nodeInfo:            info.nodeInfo,
-			ctx:                 spanCtx,
-		})
-	} else {
-		log.WithField("span", span).Debugf("channel: %v has pending htlcs, skipping liquidity management", info.channel.GetChanId())
-	}
+	//Manage liquidity if there are no pending htlcs
+	err = manageChannelLiquidity(ManageChannelLiquidityInfo{
+		channel:             info.channel,
+		channelBalanceRatio: channelBalanceRatio,
+		channelRules:        &channelRules,
+		swapClientClient:    info.swapClient,
+		nodeguardClient:     info.nodeguardClient,
+		loopProvider:        info.loopProvider,
+		loopdMacaroon:       info.loopdMacaroon,
+		nodeInfo:            info.nodeInfo,
+		ctx:                 spanCtx,
+	})
 
 	if err != nil {
 
@@ -447,6 +442,13 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
+
+			// if the swapAmount is bigger than max pending htlc amount, set it to max pending htlc amount
+			maxPendingLocalSats := int64(channel.GetLocalConstraints().GetMaxPendingAmtMsat() / 1000)
+			if swapAmount > maxPendingLocalSats && maxPendingLocalSats > 0 {
+				swapAmount = maxPendingLocalSats
+				log.WithField("span",span).Infof("swap amount is bigger than max pending htlc amount, setting it to max pending htlc amount: %v", maxPendingLocalSats)
+			}
 
 			//Request nodeguard a new destination address for the reverse swap
 			walletRequest := &nodeguard.GetNewWalletAddressRequest{

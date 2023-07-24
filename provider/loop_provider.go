@@ -234,16 +234,16 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	//Use the client to request the swap
 	resp, err := client.LoopOut(ctx, &looprpc.LoopOutRequest{
-		Amt:                     request.SatsAmount,
-		Dest:                    request.ReceiverBTCAddress,
-		MaxMinerFee:             int64(limits.maxMinerFee),
-		MaxPrepayAmt:            int64(limits.maxPrepayAmt),
-		MaxSwapFee:              int64(limits.maxSwapFee),
-		MaxPrepayRoutingFee:     int64(limits.maxPrepayRoutingFee),
-		MaxSwapRoutingFee:       int64(limits.maxSwapRoutingFee),
-		OutgoingChanSet:         request.ChannelSet,
-		SweepConfTarget:         2, //TODO Make this configurable
-		HtlcConfirmations:       2,
+		Amt:                 request.SatsAmount,
+		Dest:                request.ReceiverBTCAddress,
+		MaxMinerFee:         int64(limits.maxMinerFee),
+		MaxPrepayAmt:        int64(limits.maxPrepayAmt),
+		MaxSwapFee:          int64(limits.maxSwapFee),
+		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
+		MaxSwapRoutingFee:   int64(limits.maxSwapRoutingFee),
+		OutgoingChanSet:     request.ChannelSet,
+		SweepConfTarget:     3, //TODO Make this configurable
+		HtlcConfirmations:   3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
 		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
