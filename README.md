@@ -10,17 +10,14 @@ Usage:
   liquidator [flags]
 
 Flags:
-  -h, --help                     help for liquidator
-      --logFormat string         Log format from: {text, json} (default "text")
-      --logLevel string          Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
-      --loopdHosts string        Command separated list of hostname:port to connect to loopd, each position corresponds to the managed node in nodesHosts
-      --loopdMacaroons string    Command separated list of macaroons used in loopdHosts in hex, in the same order of loopdHosts
-      --loopdTLSCerts string     Command separated list of tls certs from loopd in base64, in the same order of loopdHosts and loopdMacaroons
-      --nodeguardHost string     Hostname:port to connect to nodeguard
-      --nodesHosts string        Command separated list of hostname:port to connect to
-      --nodesMacaroons string    Command separated list of macaroons used in nodesHosts in hex, in the same order of NODESHOSTS
-      --nodesTLSCerts string     Command separated list of tls certs from LNDS in base64, in the same order of NODESHOSTS and NODESMACAROONS
-      --pollingInterval string   Interval to poll data (default "15s")
+  -h, --help                           help for liquidator
+      --lndconnecturis string          CSV of lndconnect strings to connect to lnd(s)
+      --logFormat string               Log format from: {text, json} (default "text")
+      --logLevel string                Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
+      --loopdconnecturis string        CSV of loopdconnect strings to connect to loopd(s)
+      --nodeguardHost string           Hostname:port to connect to nodeguard
+      --pollingInterval string         Interval to poll data (default "15s")
+      --swapPublicationOffset string   Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default "30m")
 ```
 # Requirements
 This project uses [just](https://github.com/casey/just) with the following recipes
@@ -31,6 +28,7 @@ Available recipes:
     compile-lnrpc-proto
     compile-loop-proto
     compile-nodeguard-proto
+    compile-provider-mocks
     cover-test
     fmt
     init-submodules
@@ -46,7 +44,16 @@ Available recipes:
     test
     unzip-loopd-datadir
 ```
+# Environment Variables / Flags
 
+All the flags can be set as environment variables, with the following format, except stated, they are all mandatory:
+
+- LNDCONNECTURIS : CSV of lndconnect strings to connect to lnd(s)
+- LOOPDCONNECTURIS : CSV of loopdconnect strings to connect to loopd(s)
+- POLLINGINTERVAL (optional) : Interval to poll data(default 15s)
+- LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}
+- LOGFORMAT (optional) : Log format (default json) from: {json, text}
+- SWAPPUBLICATIONOFFSET (optional) : Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default 30m)
 
 # Build & test
 ## Build
@@ -86,16 +93,7 @@ just start-all
 There are a few recipes using `just -l` to interact with loopd for loop in, loop out and calling loop CLI with args (`just loop <args>`).
 
 
-# Environment Variables / Flags
 
-All the flags can be set as environment variables, with the following format, except stated, they are all mandatory:
-
-- NODESHOSTS: Command separated list of hostname:port to connect to
-- NODESMACAROONS : Command separated list of macaroons in **hex** used in nodesHosts, in the same order of NODESHOSTS
-- NODESTLSCERTS : Command separated list of tls certs from LNDS in **base64**, in the same order of NODESHOSTS and NODESMACAROONS
-- POLLINGINTERVAL (optional) : Interval to poll data(default 15s)
-- LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}
-- LOGFORMAT (optional) : Log format (default json) from: {json, text}
 
 # Metrics
 The following metrics are exposed in the `/metrics` endpoint on port `9000` (e.g. `localhost:9000/metrics`)):
