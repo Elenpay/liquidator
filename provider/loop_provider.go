@@ -12,6 +12,7 @@ import (
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/routing/route"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type LoopProvider struct {
@@ -243,7 +244,8 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		OutgoingChanSet:         request.ChannelSet,
 		SweepConfTarget:         2, //TODO Make this configurable
 		HtlcConfirmations:       2,
-		SwapPublicationDeadline: uint64(time.Now().Unix()),
+		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
+		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
 		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
 		Initiator:               "Liquidator",
 	})
