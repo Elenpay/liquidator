@@ -366,12 +366,12 @@ func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
 	swapClientWithOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
 		Swaps: []*looprpc.SwapStatus{
 			{
-				Amt:              0,
-				Id:               "",
-				IdBytes:          idBytes,
-				Type:             looprpc.SwapType_LOOP_IN,
-				State:            looprpc.SwapState_INITIATED,
-				FailureReason:    0,
+				Amt:           0,
+				Id:            "",
+				IdBytes:       idBytes,
+				Type:          looprpc.SwapType_LOOP_IN,
+				State:         looprpc.SwapState_INITIATED,
+				FailureReason: 0,
 				//InitiationTime 4 hours ago
 				InitiationTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
 				LastUpdateTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
@@ -393,12 +393,12 @@ func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
 	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
 		Swaps: []*looprpc.SwapStatus{
 			{
-				Amt:              0,
-				Id:               "",
-				IdBytes:          idBytes,
-				Type:             looprpc.SwapType_LOOP_IN,
-				State:            looprpc.SwapState_INITIATED,
-				FailureReason:    0,
+				Amt:           0,
+				Id:            "",
+				IdBytes:       idBytes,
+				Type:          looprpc.SwapType_LOOP_IN,
+				State:         looprpc.SwapState_INITIATED,
+				FailureReason: 0,
 				//InitiationTime is more than 24 hours ago, stuck but ignored
 				InitiationTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
 				LastUpdateTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
