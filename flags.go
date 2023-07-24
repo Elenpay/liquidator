@@ -97,7 +97,7 @@ func init() {
 	viper.BindPFlag("nodeguardHost", rootCmd.Flags().Lookup("nodeguardHost"))
 
 	//Swap Publication Offset in minutes
-	rootCmd.Flags().String("swapPublicationOffset", "30m", "Swap publication deadline offset (Maximum time for the swap provider to publish the swap))))")
+	rootCmd.Flags().String("swapPublicationOffset", "30m", "Swap publication deadline offset (Maximum time for the swap provider to publish the swap)")
 	viper.BindPFlag("swapPublicationOffset", rootCmd.Flags().Lookup("swapPublicationOffset"))
 
 	//Now we set the global vars
