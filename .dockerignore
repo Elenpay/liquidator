@@ -1,0 +1,8 @@
+.loop
+.vscode
+.github
+regtest.polar*
+lnd
+loop
+volumes
+loopd.zip
