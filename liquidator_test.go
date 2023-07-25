@@ -117,7 +117,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			CsvDelay:          144,
 			ChanReserveSat:    250,
 			DustLimitSat:      300,
-			MaxPendingAmtMsat: 300*1000,
+			MaxPendingAmtMsat: 300 * 1000,
 			MinHtlcMsat:       350 * 1000,
 			MaxAcceptedHtlcs:  30,
 		},
@@ -146,7 +146,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			},
 			wantErr: false,
 		},
-				{
+		{
 			name: "Manage channel liquidity test valid reverse swap bypassing max pending amt",
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
