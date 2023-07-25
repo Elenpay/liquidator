@@ -446,8 +446,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			// if the swapAmount is bigger than max pending htlc amount, set it to max pending htlc amount
 			maxPendingLocalSats := int64(channel.GetLocalConstraints().GetMaxPendingAmtMsat() / 1000)
 			if swapAmount > maxPendingLocalSats && maxPendingLocalSats > 0 {
-				swapAmount = maxPendingLocalSats
-				log.WithField("span",span).Infof("swap amount is bigger than max pending htlc amount, setting it to max pending htlc amount: %v", maxPendingLocalSats)
+				//Lets apply a backoff of 5% to the max pending htlc amount to avoid failing the swap round
+				swapAmount = int64(float64(maxPendingLocalSats) * 0.95)
+				log.WithField("span", span).Infof("swap amount is bigger than max pending htlc amount, setting it to max pending htlc amount: %v", swapAmount)
 			}
 
 			//Request nodeguard a new destination address for the reverse swap
