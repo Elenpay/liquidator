@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var maxMessageSize = 1024 * 1024 * 1024
+var maxMessageSize = 200 * 1024 * 1024 // 200MB
 
 // Generates the gRPC lightning client∏
 func CreateLightningClient(lndConnectParams lndconnect.LndConnectParams) (lnrpc.LightningClient, *grpc.ClientConn, error) {
