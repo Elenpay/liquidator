@@ -16,6 +16,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var maxMessageSize = 200 * 1024 * 1024 // 200MB
+
 // Generates the gRPC lightning client∏
 func CreateLightningClient(lndConnectParams lndconnect.LndConnectParams) (lnrpc.LightningClient, *grpc.ClientConn, error) {
 	creds, err := generateCredentials(lndConnectParams.Cert)
@@ -71,8 +73,11 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 }
 
 // generates the gRPC connection based on the node endpoint and the credentials
-func getConn(nodeEndpoint string, creds credentials.TransportCredentials) (*grpc.ClientConn, error) {
-	conn, err := grpc.Dial(nodeEndpoint, grpc.WithTransportCredentials(creds),
+func getConn(gRPCEndpoint string, creds credentials.TransportCredentials) (*grpc.ClientConn, error) {
+	conn, err := grpc.Dial(gRPCEndpoint, grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+			grpc.MaxCallSendMsgSize(maxMessageSize)),
 		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()))
 
