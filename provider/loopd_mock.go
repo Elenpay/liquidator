@@ -37,6 +37,26 @@ func (m *MockSwapClientClient) EXPECT() *MockSwapClientClientMockRecorder {
 	return m.recorder
 }
 
+// GetInfo mocks base method.
+func (m *MockSwapClientClient) GetInfo(ctx context.Context, in *looprpc.GetInfoRequest, opts ...grpc.CallOption) (*looprpc.GetInfoResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetInfo", varargs...)
+	ret0, _ := ret[0].(*looprpc.GetInfoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInfo indicates an expected call of GetInfo.
+func (mr *MockSwapClientClientMockRecorder) GetInfo(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockSwapClientClient)(nil).GetInfo), varargs...)
+}
+
 // GetLiquidityParams mocks base method.
 func (m *MockSwapClientClient) GetLiquidityParams(ctx context.Context, in *looprpc.GetLiquidityParamsRequest, opts ...grpc.CallOption) (*looprpc.LiquidityParameters, error) {
 	m.ctrl.T.Helper()
@@ -461,6 +481,21 @@ func NewMockSwapClientServer(ctrl *gomock.Controller) *MockSwapClientServer {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSwapClientServer) EXPECT() *MockSwapClientServerMockRecorder {
 	return m.recorder
+}
+
+// GetInfo mocks base method.
+func (m *MockSwapClientServer) GetInfo(arg0 context.Context, arg1 *looprpc.GetInfoRequest) (*looprpc.GetInfoResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetInfo", arg0, arg1)
+	ret0, _ := ret[0].(*looprpc.GetInfoResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetInfo indicates an expected call of GetInfo.
+func (mr *MockSwapClientServerMockRecorder) GetInfo(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetInfo", reflect.TypeOf((*MockSwapClientServer)(nil).GetInfo), arg0, arg1)
 }
 
 // GetLiquidityParams mocks base method.
