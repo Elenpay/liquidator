@@ -71,7 +71,6 @@ func initMetrics(reg prometheus.Registerer) {
 	prometheusMetrics = m
 
 	//Initialize all of them to 0 so they show up in /metrics
-	m.channelBalanceGauge.WithLabelValues("0", "0", "0", "0", "0", "0", "0").Set(0)
 	m.onchainFees.WithLabelValues("0", "0", "0", "0", "0").Add(0)
 	m.offchainFees.WithLabelValues("0", "0", "0", "0", "0").Add(0)
 	m.providerFees.WithLabelValues("0", "0", "0", "0", "0").Add(0)
