@@ -1,3 +1,3 @@
 module looprpc
 
-go 1.20
+go 1.19
