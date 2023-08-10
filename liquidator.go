@@ -144,8 +144,14 @@ func startLiquidator() {
 		go startNodeGuardPolling(nodeInfo, nodeguardClient, nodeContext)
 
 		//Start a goroutine to monitor the channels of the node
+		lndconnectParams, err := lndconnect.Parse(lndconnectURI)
+
+		if err != nil {
+			log.Fatalf("failed to parse lndconnectURI: %v", err)
+		}
+
 		go monitorChannels(MonitorChannelsInfo{
-			nodeHost:        lndconnectURI,
+			nodeHost:        lndconnectParams.Host + ":" + lndconnectParams.Port,
 			nodeInfo:        nodeInfo,
 			nodeMacaroon:    nodeMacaroon,
 			loopdMacaroon:   loopdMacaroon,
