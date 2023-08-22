@@ -24,8 +24,8 @@ jobs:
           organization: ${{ github.repository_owner }}
           container: ${{ github.event.repository.name }}
           dry-run: true # Dry-run first, then change to `false`
-          keep-younger-than: 90 # days
-          keep-last: 5
+          keep-younger-than: 365 # days
+          keep-last: 20
           prune-tags-regexes: | 
             .*
           keep-tags-regexes: | 
