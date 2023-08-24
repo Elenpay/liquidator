@@ -274,6 +274,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 	loopProvider := provider.LoopProvider{}
 	//Infinite loop to monitor channels
 	for {
+		prometheusMetrics.channelBalanceGauge.Reset()
 
 		//Call ListChannels method of lightning client with metadata headers
 		response, err := info.lightningClient.ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{

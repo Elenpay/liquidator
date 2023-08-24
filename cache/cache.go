@@ -83,7 +83,7 @@ func (c *BigCache) GetLiquidityRules(nodePubkey string) (map[uint64][]nodeguard.
 
 	entry, err := c.cache.Get(nodePubkey)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 
 	//Convert bytes to rules
