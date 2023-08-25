@@ -83,6 +83,7 @@ func (c *BigCache) GetLiquidityRules(nodePubkey string) (map[uint64][]nodeguard.
 
 	entry, err := c.cache.Get(nodePubkey)
 	if err != nil {
+		log.Debugf("Unable to get liquidity rule for %s: %s", nodePubkey, err)
 		return nil, nil
 	}
 
