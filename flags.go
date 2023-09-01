@@ -109,6 +109,10 @@ func init() {
 	rootCmd.Flags().Float64("backoffCoefficient", 0.95, "Coefficient to apply to the backoff")
 	viper.BindPFlag("backoffCoefficient", rootCmd.Flags().Lookup("backoffCoefficient"))
 
+	// Limit coefficient of the backoff
+	rootCmd.Flags().Float64("backoffLimit", 0.1, "Limit coefficient of the backoff")
+	viper.BindPFlag("backoffLimit", rootCmd.Flags().Lookup("backoffLimit"))
+
 	//Now we set the global vars
 
 	pollingInterval = viper.GetDuration("pollingInterval")
@@ -118,6 +122,7 @@ func init() {
 
 	retries = viper.GetInt("retriesBeforeBackoff")
 	backoffCoefficient = viper.GetFloat64("backoffCoefficient")
+	backoffLimit = viper.GetFloat64("backoffLimit")
 
 	//Set log level and format
 
