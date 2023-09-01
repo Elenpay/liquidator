@@ -30,8 +30,11 @@ import (
 )
 
 var (
-	prometheusMetrics *metrics
-	rulesCache        cache.Cache
+	prometheusMetrics  *metrics
+	rulesCache         cache.Cache
+	retries            int
+	backoffCoefficient float64
+	backoffLimit       float64
 )
 
 // Entrypoint of liquidator main logic
@@ -458,7 +461,9 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				log.WithField("span", span).Infof("swap amount is bigger than max pending htlc amount, setting it to max pending htlc amount: %v", swapAmount)
 			}
 
-			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx)
+			retryCounter := 1
+
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
 			if err != nil {
 				return err
 			}
@@ -472,10 +477,13 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
 			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
+
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
-			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx)
+			retryCounter := 1
+
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
 			if err != nil {
 				return err
 			}
@@ -487,7 +495,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 }
 
-func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context) error {
+func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
 	//Perform the swap
 	swapRequest := provider.SubmarineSwapRequest{
 		SatsAmount:    swapAmount,
@@ -580,6 +588,23 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 		//Error log: The swap was failed
 		err := fmt.Errorf("failed swap failure reason: %v, channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 		log.WithField("span", span).Error(err)
+
+		if retryCounter < retries {
+			//Retry the swap
+			retryCounter++
+			log.WithField("span", span).Infof("retrying swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			if err != nil {
+				return err
+			}
+		} else if float64(helper.AbsInt64((channel.RemoteBalance-swapAmountTarget)))*backoffLimit > float64(swapAmount)*backoffCoefficient {
+			newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+			err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+			if err != nil {
+				return err
+			}
+		}
+
 		return err
 	} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 		//Success log: The swap was successful
@@ -593,7 +618,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	return nil
 }
 
-func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context) error {
+func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
 	//Request nodeguard a new destination address for the reverse swap
 	walletRequest := &nodeguard.GetNewWalletAddressRequest{
 		WalletId: rule.WalletId,
@@ -632,7 +657,27 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 		//Error log: The swap was failed
 		err := fmt.Errorf("failed reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 		log.WithField("span", span).Error(err)
-		return err
+
+		if retryCounter < retries {
+			//Retry the swap
+			retryCounter++
+			log.WithField("span", span).Infof("retrying reverse swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			if err != nil {
+				return err
+			}
+		} else {
+			initialSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if initialSwapAmount > float64(swapAmount)*backoffCoefficient {
+				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				if err != nil {
+					return err
+				}
+			}
+			err := fmt.Errorf("reached max retries for reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+			return err
+		}
 	} else if swapStatus.State == looprpc.SwapState_SUCCESS {
 		//Success log: The swap was successful
 		log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
