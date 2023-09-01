@@ -597,12 +597,17 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 			if err != nil {
 				return err
 			}
-		} else if float64(helper.AbsInt64((channel.RemoteBalance-swapAmountTarget)))*backoffLimit > float64(swapAmount)*backoffCoefficient {
-			newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
-			err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
-			if err != nil {
-				return err
+		} else {
+			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if limitSwapAmount > float64(swapAmount)*backoffCoefficient {
+				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				if err != nil {
+					return err
+				}
 			}
+			err := fmt.Errorf("reached max retries for reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+			return err
 		}
 
 		return err
@@ -667,8 +672,8 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 				return err
 			}
 		} else {
-			initialSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
-			if initialSwapAmount > float64(swapAmount)*backoffCoefficient {
+			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if limitSwapAmount > float64(swapAmount)*backoffCoefficient {
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
 				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
 				if err != nil {
