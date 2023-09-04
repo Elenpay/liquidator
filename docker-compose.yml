@@ -6,9 +6,7 @@ services:
       - "11009:11009"
     extra_hosts:
       - "alice:host-gateway"
-    #image: lightninglabs/loopserver:v0.9.77-beta
-    image: loopserver
-    #platform: linux/amd64
+    image: lightninglabs/loopserver:v0.9.147-beta
     restart: unless-stopped
     networks:
       - regtest
