@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -104,6 +105,9 @@ func Test_manageChannelLiquidity(t *testing.T) {
 
 	//Mock provider invalid swap
 	mockProviderInvalid := createMockProviderInvalidSwap(mockCtrl)
+
+	//Mock provider invalid reverse swap loop error
+	mockProviderInvalidLoopError := createMockProviderInvalidSwapLoopError(mockCtrl)
 
 	//Active channel
 	channelActive := &lnrpc.Channel{
@@ -225,6 +229,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Manage channel liquidity test failed reverse swap channel outbound capacity",
+			args: ManageChannelLiquidityInfo{
+				channel:             channelActive,
+				channelBalanceRatio: 0.1,
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				nodeguardClient:     mockNodeGuardClient,
+				loopProvider:        mockProviderInvalidLoopError,
+				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				nodeInfo:            nodeInfo,
+				ctx:                 context.TODO(),
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,6 +310,18 @@ func createMockProviderInvalidSwap(mockCtrl *gomock.Controller) *provider.MockPr
 
 	return mockProviderInvalid
 
+}
+
+func createMockProviderInvalidSwapLoopError(mockCtrl *gomock.Controller) *provider.MockProvider {
+	mockProviderInvalid := provider.NewMockProvider(mockCtrl)
+
+	mockProviderInvalid.EXPECT().RequestReverseSubmarineSwap(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(
+			provider.ReverseSubmarineSwapResponse{},
+			errors.New("code = Unknown desc = channel balance too low for loop out amount: Requested swap amount of 2471564 sats along with the maximum routing fee of 49441 sats is more than what can be routed given current state of the channel set"),
+		).AnyTimes()
+
+	return mockProviderInvalid
 }
 
 func Test_monitorChannel(t *testing.T) {
