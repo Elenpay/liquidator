@@ -279,6 +279,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 	loopProvider := provider.LoopProvider{}
 	//Infinite loop to monitor channels
 	for {
+		prometheusMetrics.channelBalanceGauge.Reset()
 
 		//Call ListChannels method of lightning client with metadata headers
 		response, err := info.lightningClient.ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{
@@ -304,8 +305,6 @@ func monitorChannels(info MonitorChannelsInfo) {
 		liquidationRules, err := rulesCache.GetLiquidityRules(nodePubKey)
 		if err != nil {
 			log.Debugf("failed to get liquidation rules from cache: %v for node %s", err, nodePubKey)
-			time.Sleep(pollingInterval)
-			continue
 		}
 
 		//Iterate over response channels
@@ -356,6 +355,10 @@ func monitorChannel(info MonitorChannelInfo) {
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
 	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, spanCtx)
+
+	if info.liquidationRules == nil {
+		return
+	}
 
 	channelRules := info.liquidationRules[info.channel.GetChanId()]
 
