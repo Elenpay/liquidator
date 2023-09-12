@@ -1,4 +1,5 @@
 set positional-arguments
+set fallback := true
 
 fmt:
     go fmt github.com/Elenpay/...
