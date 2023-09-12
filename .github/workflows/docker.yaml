@@ -42,8 +42,8 @@ jobs:
           context: .
           file: Dockerfile
           push: true
-          sbom: true
-          platforms: "linux/amd64,linux/arm64" 
+          platforms: "linux/amd64,linux/arm64"
+          # sbom: true
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
