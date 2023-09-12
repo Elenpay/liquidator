@@ -22,9 +22,10 @@ THE SOFTWARE.
 package main
 
 import (
-	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -100,12 +101,29 @@ func init() {
 	rootCmd.Flags().String("swapPublicationOffset", "30m", "Swap publication deadline offset (Maximum time for the swap provider to publish the swap)")
 	viper.BindPFlag("swapPublicationOffset", rootCmd.Flags().Lookup("swapPublicationOffset"))
 
+	// Retries before applying backoff to the swap
+	rootCmd.Flags().Int("retriesBeforeBackoff", 3, "Number of retries before applying backoff to the swap")
+	viper.BindPFlag("retriesBeforeBackoff", rootCmd.Flags().Lookup("retriesBeforeBackoff"))
+
+	// Coefficient to apply to the backoff
+	rootCmd.Flags().Float64("backoffCoefficient", 0.95, "Coefficient to apply to the backoff")
+	viper.BindPFlag("backoffCoefficient", rootCmd.Flags().Lookup("backoffCoefficient"))
+
+	// Limit coefficient of the backoff
+	rootCmd.Flags().Float64("backoffLimit", 0.1, "Limit coefficient of the backoff")
+	viper.BindPFlag("backoffLimit", rootCmd.Flags().Lookup("backoffLimit"))
+
 	//Now we set the global vars
 
 	pollingInterval = viper.GetDuration("pollingInterval")
 	nodeguardHost = viper.GetString("nodeguardHost")
 	loopdconnectURIs = strings.Split(viper.GetString("loopdconnecturis"), ",")
 	lndconnectURIs = strings.Split(viper.GetString("lndconnecturis"), ",")
+
+	retries = viper.GetInt("retriesBeforeBackoff")
+	backoffCoefficient = viper.GetFloat64("backoffCoefficient")
+	backoffLimit = viper.GetFloat64("backoffLimit")
+
 	//Set log level and format
 
 	logLevel, err := log.ParseLevel(viper.GetString("logLevel"))
@@ -129,5 +147,7 @@ func init() {
 	log.Debug("logLevel: ", logLevel)
 	log.Debug("logFormat: ", viper.GetString("logFormat"))
 	log.Debug("nodeguardHost: ", nodeguardHost)
+	log.Debug("retriesBeforeBackoff: ", viper.GetInt("retriesBeforeBackoff"))
+	log.Debug("backoffCoefficient: ", viper.GetFloat64("backoffCoefficient"))
 
 }

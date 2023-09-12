@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,11 +27,15 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
-	prometheusMetrics *metrics
-	rulesCache        cache.Cache
+	prometheusMetrics  *metrics
+	rulesCache         cache.Cache
+	retries            int
+	backoffCoefficient float64
+	backoffLimit       float64
 )
 
 // Entrypoint of liquidator main logic
@@ -452,64 +457,12 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
-			// if the swapAmount is bigger than max pending htlc amount, set it to max pending htlc amount
-			maxPendingLocalSats := int64(channel.GetLocalConstraints().GetMaxPendingAmtMsat() / 1000)
-			if swapAmount > maxPendingLocalSats && maxPendingLocalSats > 0 {
-				//Lets apply a backoff of 5% to the max pending htlc amount to avoid failing the swap round
-				swapAmount = int64(float64(maxPendingLocalSats) * 0.95)
-				log.WithField("span", span).Infof("swap amount is bigger than max pending htlc amount, setting it to max pending htlc amount: %v", swapAmount)
-			}
+			retryCounter := 1
 
-			//Request nodeguard a new destination address for the reverse swap
-			walletRequest := &nodeguard.GetNewWalletAddressRequest{
-				WalletId: rule.WalletId,
-			}
-
-			addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
-			if err != nil || addrResponse.GetAddress() == "" {
-				log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
-				return err
-			}
-
-			//Perform the swap
-			swapRequest := provider.ReverseSubmarineSwapRequest{
-				SatsAmount:         swapAmount,
-				ChannelSet:         []uint64{channel.GetChanId()},
-				ReceiverBTCAddress: addrResponse.Address,
-			}
-
-			log.WithField("span", span).Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", swapRequest.SatsAmount, swapRequest.ReceiverBTCAddress)
-
-			resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
-			if err != nil {
-				log.WithField("span", span).Errorf("error requesting reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
-				return err
-			}
-
-			log.WithField("span", span).Infof("reverse swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-
-			//Monitor the swap
-			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
 			if err != nil {
 				return err
 			}
-
-			if swapStatus.State == looprpc.SwapState_FAILED {
-				//Error log: The swap was failed
-				err := fmt.Errorf("failed reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
-				log.WithField("span", span).Error(err)
-				return err
-			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
-				//Success log: The swap was successful
-				log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-
-				swapType := "rswap"
-
-				//Add fees to counter
-				recordSwapFees(swapStatus, info, swapType, channel)
-
-			}
-
 		}
 	case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
 		{
@@ -520,118 +473,232 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
 			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
+
 			//Calculate the swap amount
 			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
-			//Perform the swap
-			swapRequest := provider.SubmarineSwapRequest{
-				SatsAmount:    swapAmount,
-				LastHopPubkey: channel.RemotePubkey,
-			}
+			retryCounter := 1
 
-			//Log including channel.GetChanId() and swapAmount
-			log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(), channel.GetChanId())
-
-			resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
-			if err != nil {
-				log.WithField("span", span).Errorf("error requesting swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
-				return err
-			}
-
-			log.WithField("span", span).Infof("submarine swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-
-			invoiceAddress := resp.InvoiceBTCAddress
-
-			//Retry for 10 times to try to get the invoice btc address if for some reason it was empty
-			if invoiceAddress == "" && resp.SwapId != "" {
-
-				//While the swap htlc address is not set, retry 10 times, each time exponentially increasing the time between retries
-				for i := 0; i < 10; i++ {
-					//Get the swap status
-
-					swapStatus, err := info.loopProvider.GetSwapStatus(loopdCtx, resp.SwapId, info.swapClientClient)
-
-					if err != nil {
-						return err
-					}
-
-					if swapStatus.HtlcAddressP2Wsh != "" || swapStatus.HtlcAddressP2Tr != "" {
-						//The swap htlc address is set, break the loop
-
-						if swapStatus.HtlcAddressP2Tr != "" {
-							invoiceAddress = swapStatus.HtlcAddressP2Tr
-						} else {
-							invoiceAddress = swapStatus.HtlcAddressP2Wsh
-						}
-
-						break
-					}
-
-					//Sleep for 2^i seconds
-					time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
-
-				}
-
-			}
-
-			if invoiceAddress == "" {
-				err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-				log.WithField("span", span).Errorf("error performing swap: %v", err)
-				return err
-			}
-
-			//Request nodeguard to send the swap amount to the invoice address
-
-			withdrawalRequest := nodeguard.RequestWithdrawalRequest{
-				WalletId:    rule.WalletId,
-				Address:     resp.InvoiceBTCAddress,
-				Amount:      swapAmount,
-				Description: fmt.Sprintf("Swap %v", resp.SwapId),
-			}
-
-			withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
-			if err != nil {
-				err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
-				log.WithField("span", span).Errorf("error performing swap: %v", err)
-
-				return err
-			}
-
-			//Log the swap request
-
-			if withdrawalResponse.IsHotWallet {
-				log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-			} else {
-				log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-			}
-
-			//Monitor the swap
-			swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
 			if err != nil {
 				return err
 			}
-
-			if swapStatus.State == looprpc.SwapState_FAILED {
-				//Error log: The swap was failed
-				err := fmt.Errorf("failed swap failure reason: %v, channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
-				log.WithField("span", span).Error(err)
-				return err
-			} else if swapStatus.State == looprpc.SwapState_SUCCESS {
-				//Success log: The swap was successful
-				log.WithField("span", span).Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
-
-				swapType := "swap"
-
-				//Add fees to counter
-				recordSwapFees(swapStatus, info, swapType, channel)
-			}
-
 		}
 
 	}
 
 	return nil
 
+}
+
+func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
+	//Perform the swap
+	swapRequest := provider.SubmarineSwapRequest{
+		SatsAmount:    swapAmount,
+		LastHopPubkey: channel.RemotePubkey,
+	}
+
+	//Log including channel.GetChanId() and swapAmount
+	log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(), channel.GetChanId())
+
+	resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+	if err != nil {
+		log.WithField("span", span).Errorf("error requesting swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+		return err
+	}
+
+	log.WithField("span", span).Infof("submarine swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+
+	invoiceAddress := resp.InvoiceBTCAddress
+
+	//Retry for 10 times to try to get the invoice btc address if for some reason it was empty
+	if invoiceAddress == "" && resp.SwapId != "" {
+
+		//While the swap htlc address is not set, retry 10 times, each time exponentially increasing the time between retries
+		for i := 0; i < 10; i++ {
+			//Get the swap status
+
+			swapStatus, err := info.loopProvider.GetSwapStatus(loopdCtx, resp.SwapId, info.swapClientClient)
+
+			if err != nil {
+				return err
+			}
+
+			if swapStatus.HtlcAddressP2Wsh != "" || swapStatus.HtlcAddressP2Tr != "" {
+				//The swap htlc address is set, break the loop
+
+				if swapStatus.HtlcAddressP2Tr != "" {
+					invoiceAddress = swapStatus.HtlcAddressP2Tr
+				} else {
+					invoiceAddress = swapStatus.HtlcAddressP2Wsh
+				}
+
+				break
+			}
+
+			//Sleep for 2^i seconds
+			time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+
+		}
+
+	}
+
+	if invoiceAddress == "" {
+		err := fmt.Errorf("invoice BTC address is empty for swap id: %v on node: %v", resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Errorf("error performing swap: %v", err)
+		return err
+	}
+
+	//Request nodeguard to send the swap amount to the invoice address
+
+	withdrawalRequest := nodeguard.RequestWithdrawalRequest{
+		WalletId:    rule.WalletId,
+		Address:     resp.InvoiceBTCAddress,
+		Amount:      swapAmount,
+		Description: fmt.Sprintf("Swap %v", resp.SwapId),
+	}
+
+	withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
+	if err != nil {
+		err = fmt.Errorf("error requesting nodeguard to send the swap amount to the invoice address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Errorf("error performing swap: %v", err)
+
+		return err
+	}
+
+	//Log the swap request
+
+	if withdrawalResponse.IsHotWallet {
+		log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+	} else {
+		log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+	}
+
+	//Monitor the swap
+	swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+	if err != nil {
+		return err
+	}
+
+	if swapStatus.State == looprpc.SwapState_FAILED {
+		//Error log: The swap was failed
+		err := fmt.Errorf("failed swap failure reason: %v, channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Error(err)
+
+		if retryCounter < retries {
+			//Retry the swap
+			retryCounter++
+			log.WithField("span", span).Infof("retrying swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			if err != nil {
+				return err
+			}
+		} else {
+			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
+				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				if err != nil {
+					return err
+				}
+			}
+			err := fmt.Errorf("reached max retries for reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+			return err
+		}
+
+		return err
+	} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+		//Success log: The swap was successful
+		log.WithField("span", span).Infof("swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+
+		swapType := "swap"
+
+		//Add fees to counter
+		recordSwapFees(swapStatus, info, swapType, channel)
+	}
+	return nil
+}
+
+func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
+	//Request nodeguard a new destination address for the reverse swap
+	walletRequest := &nodeguard.GetNewWalletAddressRequest{
+		WalletId: rule.WalletId,
+	}
+
+	addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
+	if err != nil || addrResponse.GetAddress() == "" {
+		log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+		return err
+	}
+
+	//Perform the swap
+	swapRequest := provider.ReverseSubmarineSwapRequest{
+		SatsAmount:         swapAmount,
+		ChannelSet:         []uint64{channel.GetChanId()},
+		ReceiverBTCAddress: addrResponse.Address,
+	}
+
+	log.WithField("span", span).Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", swapRequest.SatsAmount, swapRequest.ReceiverBTCAddress)
+
+	resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+	if err != nil {
+		log.WithField("span", span).Errorf("error requesting reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+		if strings.Contains(err.Error(), "channel balance too low for loop out amount") {
+			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
+				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				err = performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return err
+	}
+
+	log.WithField("span", span).Infof("reverse swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+
+	//Monitor the swap
+	swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+	if err != nil {
+		return err
+	}
+
+	if swapStatus.State == looprpc.SwapState_FAILED {
+		//Error log: The swap was failed
+		err := fmt.Errorf("failed reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Error(err)
+
+		if retryCounter < retries {
+			//Retry the swap
+			retryCounter++
+			log.WithField("span", span).Infof("retrying reverse swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			if err != nil {
+				return err
+			}
+		} else {
+			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
+			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
+				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				if err != nil {
+					return err
+				}
+			}
+			err := fmt.Errorf("reached max retries for reverse swap, failure reason: %v channel: %v on node: %v", swapStatus.GetFailureReason(), channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
+			return err
+		}
+	} else if swapStatus.State == looprpc.SwapState_SUCCESS {
+		//Success log: The swap was successful
+		log.WithField("span", span).Infof("reverse swap performed for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+
+		swapType := "rswap"
+
+		//Add fees to counter
+		recordSwapFees(swapStatus, info, swapType, channel)
+	}
+	return nil
 }
 
 // Add fees to the prometheus counter for swaps

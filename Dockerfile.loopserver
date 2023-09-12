@@ -1,10 +1,10 @@
-FROM --platform=linux/amd64 lightninglabs/loopserver:v0.9.123-beta
+FROM lightninglabs/loopserver:v0.9.147-beta
 
-COPY regtest.polar/volumes/lnd/alice /root/.lnd
+# COPY regtest.polar/volumes/lnd/alice /root/.lnd
 
-USER root
+# USER root
 
-RUN chmod -R 777 /root/.lnd
-RUN chown -R loopserver:loopserver /root/.lnd
+# RUN chmod -R 777 /root/.lnd
+# RUN chown -R loopserver:loopserver /root/.lnd
 
 USER loopserver
