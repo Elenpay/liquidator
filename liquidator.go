@@ -277,10 +277,11 @@ func monitorChannels(info MonitorChannelsInfo) {
 
 	//Loop provider
 	loopProvider := provider.LoopProvider{}
+
+	prevChannels := []*lnrpc.Channel{}
+
 	//Infinite loop to monitor channels
 	for {
-		prometheusMetrics.channelBalanceGauge.Reset()
-
 		//Call ListChannels method of lightning client with metadata headers
 		response, err := info.lightningClient.ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{
 			ActiveOnly: false,
@@ -298,6 +299,22 @@ func monitorChannels(info MonitorChannelsInfo) {
 			continue
 		}
 
+		// remove channel metrics that are not in list of channels anymore
+		for _, channel := range prevChannels {
+			found := false
+			for _, newChannel := range response.Channels {
+				if channel.GetChanId() == newChannel.GetChanId() {
+					found = true
+					break
+				}
+			}
+			if !found {
+				//Remove channel balance metric
+				deleteChannelBalanceMetric(info.nodeHost, channel, info.lightningClient, info.nodeCtx)
+			}
+		}
+
+		prevChannels = response.Channels
 		//TODO Support rules without nodeguard in the future
 
 		//Get liquidation rule from cache
@@ -767,6 +784,49 @@ func recordChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, channel
 		"active":             active,
 		"initiator":          initiator,
 	}).Set(channelBalanceRatio)
+}
+
+// Delete the channel balance metric in a prometheus gauge for a specific channel
+func deleteChannelBalanceMetric(nodeHost string, channel *lnrpc.Channel, lightningClient lnrpc.LightningClient, context context.Context) {
+	//Start span
+	_, span := otel.Tracer("monitorChannel").Start(context, "deleteChannelBalanceMetric")
+	defer span.End()
+
+	channelId := fmt.Sprint(channel.GetChanId())
+
+	localNodeInfo, err := getInfo(lightningClient, context)
+
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithField("span", span).Errorf("error getting local node info: %v", err)
+	}
+
+	remoteNodeInfo, err := getNodeInfo(channel.RemotePubkey, lightningClient, context)
+
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+		log.WithField("span", span).Errorf("error getting remote node info: %v", err)
+	}
+
+	localPubKey := localNodeInfo.GetIdentityPubkey()
+	remotePubKey := channel.GetRemotePubkey()
+	localAlias := localNodeInfo.GetAlias()
+	remoteAlias := remoteNodeInfo.GetNode().GetAlias()
+
+	active := strconv.FormatBool(channel.GetActive())
+	initiator := strconv.FormatBool(channel.GetInitiator())
+
+	prometheusMetrics.channelBalanceGauge.Delete(prometheus.Labels{
+		"chan_id":            channelId,
+		"local_node_pubkey":  localPubKey,
+		"remote_node_pubkey": remotePubKey,
+		"local_node_alias":   localAlias,
+		"remote_node_alias":  remoteAlias,
+		"active":             active,
+		"initiator":          initiator,
+	})
 }
 
 // Gets the info from the node which we have the macaroon
