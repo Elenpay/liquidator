@@ -20,7 +20,6 @@ import (
 	"github.com/Elenpay/liquidator/rpc"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +39,6 @@ var (
 
 // Entrypoint of liquidator main logic
 func startLiquidator() {
-
 	//Init opentelemetry tracer
 	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" {
 
