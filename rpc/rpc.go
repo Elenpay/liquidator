@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"os"
 
 	"github.com/Elenpay/liquidator/lndconnect"
 	"github.com/Elenpay/liquidator/nodeguard"
@@ -90,7 +91,8 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 
 	//TODO ADD TLS to NodeGuard API
 
-	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials(), WithTokenAuth("test", "token-auth"))
+	token := os.Getenv("NODEGUARD_TOKEN")
+	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials(), WithTokenAuth(token, "auth-token"))
 	if err != nil {
 		return nil, nil, err
 	}

@@ -183,8 +183,12 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 			NodePubkey: pubkey,
 		})
 
+		if err != nil {
+			log.Errorf("startNodeguardPolling: didn't get liquitadtionRules due to the following error: %v", err)
+		}
+
 		if liquidationRules == nil || len(liquidationRules.LiquidityRules) == 0 {
-			log.Debugf("no liquidation rules found for node %v", pubkey)
+			log.Debugf("startNodeguardPolling: no liquidation rules found for node %v, retrying in %d...", pubkey, pollingInterval)
 			time.Sleep(pollingInterval)
 			continue
 		}
@@ -196,13 +200,9 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 			derefRules = append(derefRules, *rule)
 		}
 
-		if err != nil {
-			log.Errorf("failed to get liquidation rules from nodeguard: %v", err)
-		} else {
-			//Store liquidation rules in cache
-			x := nodeInfo.GetIdentityPubkey()
-			rulesCache.SetLiquidityRules(x, derefRules)
-		}
+		//Store liquidation rules in cache
+		x := nodeInfo.GetIdentityPubkey()
+		rulesCache.SetLiquidityRules(x, derefRules)
 
 		//Sleep for 10 seconds
 		time.Sleep(pollingInterval)
