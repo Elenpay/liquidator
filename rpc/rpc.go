@@ -91,7 +91,14 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 
 	//TODO ADD TLS to NodeGuard API
 
-	token := os.Getenv("NODEGUARD_TOKEN")
+	token, ok := os.LookupEnv("NODEGUARD_TOKEN")
+
+	if !ok {
+		err := fmt.Errorf("CreateNodeGuardClient: NODEGUARD_TOKEN env variable is not set")
+		log.Error(err)
+		return nil, nil, err
+	}
+
 	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials(), WithTokenAuth(token, "auth-token"))
 	if err != nil {
 		return nil, nil, err
