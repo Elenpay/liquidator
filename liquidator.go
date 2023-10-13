@@ -188,7 +188,7 @@ func startNodeGuardPolling(nodeInfo lnrpc.GetInfoResponse, nodeguardClient nodeg
 		}
 
 		if liquidationRules == nil || len(liquidationRules.LiquidityRules) == 0 {
-			log.Debugf("startNodeguardPolling: no liquidation rules found for node %v, retrying in %d...", pubkey, pollingInterval)
+			log.Debugf("startNodeguardPolling: no liquidation rules found for node %v, retrying in %s...", pubkey, pollingInterval.String())
 			time.Sleep(pollingInterval)
 			continue
 		}
