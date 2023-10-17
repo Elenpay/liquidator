@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"os"
 
 	"github.com/Elenpay/liquidator/lndconnect"
 	"github.com/Elenpay/liquidator/nodeguard"
@@ -17,6 +18,34 @@ import (
 )
 
 var maxMessageSize = 200 * 1024 * 1024 // 200MB
+
+// getConn generates the gRPC connection based on the node endpoint and the credentials
+func getConn(grpcEndpoint string, creds credentials.TransportCredentials, newOptions ...grpc.DialOption) (*grpc.ClientConn, error) {
+	baseOptions := []grpc.DialOption{
+		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize),
+			grpc.MaxCallSendMsgSize(maxMessageSize)),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	}
+
+	options := append(baseOptions, newOptions...)
+	conn, err := grpc.Dial(
+		grpcEndpoint,
+		options...)
+
+	if err != nil {
+		log.Errorf("did not connect: %v", err)
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+func WithTokenAuth(token string, header string) grpc.DialOption {
+	return grpc.WithPerRPCCredentials(NewTokenAuth(token, header))
+}
 
 // Generates the gRPC lightning client∏
 func CreateLightningClient(lndConnectParams lndconnect.LndConnectParams) (lnrpc.LightningClient, *grpc.ClientConn, error) {
@@ -57,12 +86,14 @@ func CreateSwapClientClient(lndConnectParams lndconnect.LndConnectParams) (loopr
 	return swapClient, conn, nil
 }
 
-// Creates the NodeGuard grpc client
+// CreateNodeGuardClient creates the NodeGuard grpc client
 func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardServiceClient, *grpc.ClientConn, error) {
 
 	//TODO ADD TLS to NodeGuard API
 
-	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials())
+	token := os.Getenv("NODEGUARD_API_KEY")
+
+	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials(), WithTokenAuth(token, "auth-token"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -72,24 +103,7 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 	return client, conn, nil
 }
 
-// generates the gRPC connection based on the node endpoint and the credentials
-func getConn(gRPCEndpoint string, creds credentials.TransportCredentials) (*grpc.ClientConn, error) {
-	conn, err := grpc.Dial(gRPCEndpoint, grpc.WithTransportCredentials(creds),
-		grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(maxMessageSize),
-			grpc.MaxCallSendMsgSize(maxMessageSize)),
-		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
-		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()))
-
-	if err != nil {
-		log.Errorf("did not connect: %v", err)
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-// Generates gRPC credentials for the clients
+// generateCredentials generates gRPC credentials for the clients
 func generateCredentials(certDer string) (credentials.TransportCredentials, error) {
 
 	base64decoded, err := base64.RawURLEncoding.DecodeString(certDer)

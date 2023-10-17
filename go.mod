@@ -16,6 +16,7 @@ require (
 require go.uber.org/goleak v1.2.1
 
 require (
+	github.com/joho/godotenv v1.5.1 // indirect
 	golang.org/x/exp v0.0.0-20230807204917-050eac23e9de // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230807174057-1744710a1577 // indirect
