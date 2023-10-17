@@ -91,7 +91,7 @@ func CreateNodeGuardClient(nodeGuardEndpoint string) (nodeguard.NodeGuardService
 
 	//TODO ADD TLS to NodeGuard API
 
-	token := os.Getenv("NODEGUARD_TOKEN")
+	token := os.Getenv("NODEGUARD_API_KEY")
 
 	conn, err := getConn(nodeGuardEndpoint, insecure.NewCredentials(), WithTokenAuth(token, "auth-token"))
 	if err != nil {
