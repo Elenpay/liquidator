@@ -49,7 +49,8 @@ func TestBigCache_SetGetLiquidityRules(t *testing.T) {
 	x := nodeguard.LiquidityRule{
 		ChannelId:            1,
 		NodePubkey:           "",
-		WalletId:             0,
+		SwapWalletId:         0,
+		ReverseSwapWalletId:  nil,
 		MinimumLocalBalance:  0,
 		MinimumRemoteBalance: 0,
 	}
@@ -57,7 +58,8 @@ func TestBigCache_SetGetLiquidityRules(t *testing.T) {
 	y := nodeguard.LiquidityRule{
 		ChannelId:            2,
 		NodePubkey:           "",
-		WalletId:             0,
+		SwapWalletId:         0,
+		ReverseSwapWalletId:  nil,
 		MinimumLocalBalance:  0,
 		MinimumRemoteBalance: 0,
 	}
