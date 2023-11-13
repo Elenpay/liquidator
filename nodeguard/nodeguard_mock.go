@@ -35,6 +35,146 @@ func (m *MockNodeGuardServiceClient) EXPECT() *MockNodeGuardServiceClientMockRec
 	return m.recorder
 }
 
+// AddLiquidityRule mocks base method.
+func (m *MockNodeGuardServiceClient) AddLiquidityRule(ctx context.Context, in *AddLiquidityRuleRequest, opts ...grpc.CallOption) (*AddLiquidityRuleResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AddLiquidityRule", varargs...)
+	ret0, _ := ret[0].(*AddLiquidityRuleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddLiquidityRule indicates an expected call of AddLiquidityRule.
+func (mr *MockNodeGuardServiceClientMockRecorder) AddLiquidityRule(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLiquidityRule", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).AddLiquidityRule), varargs...)
+}
+
+// AddNode mocks base method.
+func (m *MockNodeGuardServiceClient) AddNode(ctx context.Context, in *AddNodeRequest, opts ...grpc.CallOption) (*AddNodeResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AddNode", varargs...)
+	ret0, _ := ret[0].(*AddNodeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddNode indicates an expected call of AddNode.
+func (mr *MockNodeGuardServiceClientMockRecorder) AddNode(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNode", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).AddNode), varargs...)
+}
+
+// CloseChannel mocks base method.
+func (m *MockNodeGuardServiceClient) CloseChannel(ctx context.Context, in *CloseChannelRequest, opts ...grpc.CallOption) (*CloseChannelResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "CloseChannel", varargs...)
+	ret0, _ := ret[0].(*CloseChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseChannel indicates an expected call of CloseChannel.
+func (mr *MockNodeGuardServiceClientMockRecorder) CloseChannel(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseChannel", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).CloseChannel), varargs...)
+}
+
+// GetAvailableUtxos mocks base method.
+func (m *MockNodeGuardServiceClient) GetAvailableUtxos(ctx context.Context, in *GetAvailableUtxosRequest, opts ...grpc.CallOption) (*GetAvailableUtxosResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetAvailableUtxos", varargs...)
+	ret0, _ := ret[0].(*GetAvailableUtxosResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAvailableUtxos indicates an expected call of GetAvailableUtxos.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetAvailableUtxos(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableUtxos", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetAvailableUtxos), varargs...)
+}
+
+// GetAvailableWallets mocks base method.
+func (m *MockNodeGuardServiceClient) GetAvailableWallets(ctx context.Context, in *GetAvailableWalletsRequest, opts ...grpc.CallOption) (*GetAvailableWalletsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetAvailableWallets", varargs...)
+	ret0, _ := ret[0].(*GetAvailableWalletsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAvailableWallets indicates an expected call of GetAvailableWallets.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetAvailableWallets(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableWallets", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetAvailableWallets), varargs...)
+}
+
+// GetChannel mocks base method.
+func (m *MockNodeGuardServiceClient) GetChannel(ctx context.Context, in *GetChannelRequest, opts ...grpc.CallOption) (*GetChannelResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetChannel", varargs...)
+	ret0, _ := ret[0].(*GetChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChannel indicates an expected call of GetChannel.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetChannel(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChannel", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetChannel), varargs...)
+}
+
+// GetChannelOperationRequest mocks base method.
+func (m *MockNodeGuardServiceClient) GetChannelOperationRequest(ctx context.Context, in *GetChannelOperationRequestRequest, opts ...grpc.CallOption) (*GetChannelOperationRequestResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetChannelOperationRequest", varargs...)
+	ret0, _ := ret[0].(*GetChannelOperationRequestResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChannelOperationRequest indicates an expected call of GetChannelOperationRequest.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetChannelOperationRequest(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChannelOperationRequest", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetChannelOperationRequest), varargs...)
+}
+
 // GetLiquidityRules mocks base method.
 func (m *MockNodeGuardServiceClient) GetLiquidityRules(ctx context.Context, in *GetLiquidityRulesRequest, opts ...grpc.CallOption) (*GetLiquidityRulesResponse, error) {
 	m.ctrl.T.Helper()
@@ -73,6 +213,66 @@ func (mr *MockNodeGuardServiceClientMockRecorder) GetNewWalletAddress(ctx, in in
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNewWalletAddress", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetNewWalletAddress), varargs...)
+}
+
+// GetNodes mocks base method.
+func (m *MockNodeGuardServiceClient) GetNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetNodes", varargs...)
+	ret0, _ := ret[0].(*GetNodesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodes indicates an expected call of GetNodes.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetNodes(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodes", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetNodes), varargs...)
+}
+
+// GetWithdrawalsRequestStatus mocks base method.
+func (m *MockNodeGuardServiceClient) GetWithdrawalsRequestStatus(ctx context.Context, in *GetWithdrawalsRequestStatusRequest, opts ...grpc.CallOption) (*GetWithdrawalsRequestStatusResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "GetWithdrawalsRequestStatus", varargs...)
+	ret0, _ := ret[0].(*GetWithdrawalsRequestStatusResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWithdrawalsRequestStatus indicates an expected call of GetWithdrawalsRequestStatus.
+func (mr *MockNodeGuardServiceClientMockRecorder) GetWithdrawalsRequestStatus(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWithdrawalsRequestStatus", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).GetWithdrawalsRequestStatus), varargs...)
+}
+
+// OpenChannel mocks base method.
+func (m *MockNodeGuardServiceClient) OpenChannel(ctx context.Context, in *OpenChannelRequest, opts ...grpc.CallOption) (*OpenChannelResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "OpenChannel", varargs...)
+	ret0, _ := ret[0].(*OpenChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenChannel indicates an expected call of OpenChannel.
+func (mr *MockNodeGuardServiceClientMockRecorder) OpenChannel(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenChannel", reflect.TypeOf((*MockNodeGuardServiceClient)(nil).OpenChannel), varargs...)
 }
 
 // RequestWithdrawal mocks base method.
@@ -118,6 +318,111 @@ func (m *MockNodeGuardServiceServer) EXPECT() *MockNodeGuardServiceServerMockRec
 	return m.recorder
 }
 
+// AddLiquidityRule mocks base method.
+func (m *MockNodeGuardServiceServer) AddLiquidityRule(arg0 context.Context, arg1 *AddLiquidityRuleRequest) (*AddLiquidityRuleResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddLiquidityRule", arg0, arg1)
+	ret0, _ := ret[0].(*AddLiquidityRuleResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddLiquidityRule indicates an expected call of AddLiquidityRule.
+func (mr *MockNodeGuardServiceServerMockRecorder) AddLiquidityRule(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddLiquidityRule", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).AddLiquidityRule), arg0, arg1)
+}
+
+// AddNode mocks base method.
+func (m *MockNodeGuardServiceServer) AddNode(arg0 context.Context, arg1 *AddNodeRequest) (*AddNodeResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddNode", arg0, arg1)
+	ret0, _ := ret[0].(*AddNodeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddNode indicates an expected call of AddNode.
+func (mr *MockNodeGuardServiceServerMockRecorder) AddNode(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNode", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).AddNode), arg0, arg1)
+}
+
+// CloseChannel mocks base method.
+func (m *MockNodeGuardServiceServer) CloseChannel(arg0 context.Context, arg1 *CloseChannelRequest) (*CloseChannelResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseChannel", arg0, arg1)
+	ret0, _ := ret[0].(*CloseChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseChannel indicates an expected call of CloseChannel.
+func (mr *MockNodeGuardServiceServerMockRecorder) CloseChannel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseChannel", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).CloseChannel), arg0, arg1)
+}
+
+// GetAvailableUtxos mocks base method.
+func (m *MockNodeGuardServiceServer) GetAvailableUtxos(arg0 context.Context, arg1 *GetAvailableUtxosRequest) (*GetAvailableUtxosResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAvailableUtxos", arg0, arg1)
+	ret0, _ := ret[0].(*GetAvailableUtxosResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAvailableUtxos indicates an expected call of GetAvailableUtxos.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetAvailableUtxos(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableUtxos", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetAvailableUtxos), arg0, arg1)
+}
+
+// GetAvailableWallets mocks base method.
+func (m *MockNodeGuardServiceServer) GetAvailableWallets(arg0 context.Context, arg1 *GetAvailableWalletsRequest) (*GetAvailableWalletsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAvailableWallets", arg0, arg1)
+	ret0, _ := ret[0].(*GetAvailableWalletsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAvailableWallets indicates an expected call of GetAvailableWallets.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetAvailableWallets(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAvailableWallets", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetAvailableWallets), arg0, arg1)
+}
+
+// GetChannel mocks base method.
+func (m *MockNodeGuardServiceServer) GetChannel(arg0 context.Context, arg1 *GetChannelRequest) (*GetChannelResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChannel", arg0, arg1)
+	ret0, _ := ret[0].(*GetChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChannel indicates an expected call of GetChannel.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetChannel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChannel", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetChannel), arg0, arg1)
+}
+
+// GetChannelOperationRequest mocks base method.
+func (m *MockNodeGuardServiceServer) GetChannelOperationRequest(arg0 context.Context, arg1 *GetChannelOperationRequestRequest) (*GetChannelOperationRequestResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChannelOperationRequest", arg0, arg1)
+	ret0, _ := ret[0].(*GetChannelOperationRequestResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChannelOperationRequest indicates an expected call of GetChannelOperationRequest.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetChannelOperationRequest(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChannelOperationRequest", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetChannelOperationRequest), arg0, arg1)
+}
+
 // GetLiquidityRules mocks base method.
 func (m *MockNodeGuardServiceServer) GetLiquidityRules(arg0 context.Context, arg1 *GetLiquidityRulesRequest) (*GetLiquidityRulesResponse, error) {
 	m.ctrl.T.Helper()
@@ -146,6 +451,51 @@ func (m *MockNodeGuardServiceServer) GetNewWalletAddress(arg0 context.Context, a
 func (mr *MockNodeGuardServiceServerMockRecorder) GetNewWalletAddress(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNewWalletAddress", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetNewWalletAddress), arg0, arg1)
+}
+
+// GetNodes mocks base method.
+func (m *MockNodeGuardServiceServer) GetNodes(arg0 context.Context, arg1 *GetNodesRequest) (*GetNodesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNodes", arg0, arg1)
+	ret0, _ := ret[0].(*GetNodesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNodes indicates an expected call of GetNodes.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetNodes(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNodes", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetNodes), arg0, arg1)
+}
+
+// GetWithdrawalsRequestStatus mocks base method.
+func (m *MockNodeGuardServiceServer) GetWithdrawalsRequestStatus(arg0 context.Context, arg1 *GetWithdrawalsRequestStatusRequest) (*GetWithdrawalsRequestStatusResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWithdrawalsRequestStatus", arg0, arg1)
+	ret0, _ := ret[0].(*GetWithdrawalsRequestStatusResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWithdrawalsRequestStatus indicates an expected call of GetWithdrawalsRequestStatus.
+func (mr *MockNodeGuardServiceServerMockRecorder) GetWithdrawalsRequestStatus(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWithdrawalsRequestStatus", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).GetWithdrawalsRequestStatus), arg0, arg1)
+}
+
+// OpenChannel mocks base method.
+func (m *MockNodeGuardServiceServer) OpenChannel(arg0 context.Context, arg1 *OpenChannelRequest) (*OpenChannelResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OpenChannel", arg0, arg1)
+	ret0, _ := ret[0].(*OpenChannelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OpenChannel indicates an expected call of OpenChannel.
+func (mr *MockNodeGuardServiceServerMockRecorder) OpenChannel(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OpenChannel", reflect.TypeOf((*MockNodeGuardServiceServer)(nil).OpenChannel), arg0, arg1)
 }
 
 // RequestWithdrawal mocks base method.
