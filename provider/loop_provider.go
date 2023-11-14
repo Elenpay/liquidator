@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/Elenpay/liquidator/errors"
@@ -60,7 +62,8 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		return SubmarineSwapResponse{}, err
 	}
 
-	limitFees := viper.GetFloat64("limitFees")
+	limitFeesStr := os.Getenv("LIMITFEES")
+	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
 	sumFees := quote.SwapFeeSat + quote.HtlcPublishFeeSat
 
 	if sumFees > int64(float64(request.SatsAmount)*limitFees) {
