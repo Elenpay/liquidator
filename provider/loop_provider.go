@@ -60,6 +60,15 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		return SubmarineSwapResponse{}, err
 	}
 
+	limitFees := viper.GetFloat64("limitFees")
+	sumFees := quote.SwapFeeSat + quote.HtlcPublishFeeSat
+
+	if sumFees > int64(float64(request.SatsAmount)*limitFees) {
+		err := fmt.Errorf("swap fees are greater than max limit fees")
+		log.Error(err)
+		return SubmarineSwapResponse{}, err
+	}
+
 	//Get limits
 	limits := getInLimits(quote)
 
