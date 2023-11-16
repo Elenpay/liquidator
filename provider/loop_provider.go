@@ -231,8 +231,17 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	})
 
 	if err != nil {
-
 		log.Errorf("error getting quote for reverse submarine swap: %s", err)
+		return ReverseSubmarineSwapResponse{}, err
+	}
+
+	limitFeesStr := os.Getenv("LIMITFEES")
+	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
+	sumFees := quote.SwapFeeSat + quote.HtlcSweepFeeSat + quote.PrepayAmtSat
+
+	if sumFees > int64(float64(request.SatsAmount)*limitFees) {
+		err := fmt.Errorf("swap fees are greater than max limit fees")
+		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
 
