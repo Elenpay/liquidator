@@ -113,8 +113,8 @@ func init() {
 	rootCmd.Flags().Float64("backoffLimit", 0.1, "Limit coefficient of the backoff")
 	viper.BindPFlag("backoffLimit", rootCmd.Flags().Lookup("backoffLimit"))
 
-	// Limit fees for swaps in % of the amount
-	rootCmd.Flags().Float64("limitFees", 0.01, "Limit fees for swaps e.g. 0.01")
+	// Limit fees for swaps
+	rootCmd.Flags().Float64("limitFees", 0.007, "Limit fees for swaps e.g. 0.01")
 	viper.BindPFlag("limitFees", rootCmd.Flags().Lookup("limitFees"))
 
 	//Now we set the global vars
