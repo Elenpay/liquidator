@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/hex"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	os.Setenv("LIMITFEES", "0.1")
 
 	//Mock lightning swapClient GetLoopInQuote and LoopIn methods to return fake data
 	swapClient := NewMockSwapClientClient(ctrl)
