@@ -64,10 +64,15 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 	limitFeesStr := os.Getenv("LIMITFEES")
 	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
+	if err != nil {
+		return SubmarineSwapResponse{}, err
+	}
+
 	sumFees := quote.SwapFeeSat + quote.HtlcPublishFeeSat
 
-	if sumFees > int64(float64(request.SatsAmount)*limitFees) {
-		err := fmt.Errorf("swap fees are greater than max limit fees")
+	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
+	if sumFees > maximumFeesAllowed {
+		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees alowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
 		return SubmarineSwapResponse{}, err
 	}
@@ -237,10 +242,15 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	limitFeesStr := os.Getenv("LIMITFEES")
 	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
-	sumFees := quote.SwapFeeSat + quote.HtlcSweepFeeSat + quote.PrepayAmtSat
+	if err != nil {
+		return ReverseSubmarineSwapResponse{}, err
+	}
 
-	if sumFees > int64(float64(request.SatsAmount)*limitFees) {
-		err := fmt.Errorf("swap fees are greater than max limit fees")
+	sumFees := quote.SwapFeeSat + quote.HtlcSweepFeeSat + quote.PrepayAmtSat
+	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
+	
+	if sumFees > maximumFeesAllowed {
+		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees alowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
