@@ -118,7 +118,6 @@ func initTracer(ctx context.Context) (*trace.TracerProvider, error) {
 
 	otel.SetTracerProvider(
 		trace.NewTracerProvider(
-			trace.WithSampler(trace.AlwaysSample()),
 			trace.WithResource(res),
 			trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
 		),
