@@ -13,11 +13,15 @@ Usage:
 Flags:
   -h, --help                           help for liquidator
       --lndconnecturis string          CSV of lndconnect strings to connect to lnd(s)
+      --backoffCoefficient float       Coefficient to apply to the backoff (default: 0.95)
+      --backoffLimit float             Limit coefficient of the backoff (default: 0.1)
+      --limitFees float                Limit to total Swap Fees (default 0.007 -> 0.7% Swap size)
       --logFormat string               Log format from: {text, json} (default "text")
       --logLevel string                Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
       --loopdconnecturis string        CSV of loopdconnect strings to connect to loopd(s)
       --nodeguardHost string           Hostname:port to connect to nodeguard
       --pollingInterval string         Interval to poll data (default "15s")
+      --retriesBeforeBackoff int       Number of retries before applying backoff to the swap (default: 3)
       --swapPublicationOffset string   Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default "30m")
 ```
 # Requirements
@@ -49,12 +53,16 @@ Available recipes:
 
 All the flags can be set as environment variables, with the following format, except stated, they are all mandatory:
 
-- LNDCONNECTURIS : CSV of lndconnect strings to connect to lnd(s)
+- LNDCONNECTURIS : CSV of lndconnect strings to connect to lnd(s)\
+- LIMITFEES (optional) : Limit to total Swap Fees (default 0.007 -> 0.7% Swap size)
 - LOOPDCONNECTURIS : CSV of loopdconnect strings to connect to loopd(s)
 - POLLINGINTERVAL (optional) : Interval to poll data(default 15s)
 - LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}
 - LOGFORMAT (optional) : Log format (default json) from: {json, text}
 - SWAPPUBLICATIONOFFSET (optional) : Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default 30m)
+- RETRIESBEFOREBACKOFF (optional) : Number of retries before applying backoff to the swap (default: 3)
+- BACKOFFCOEFFICIENT (optional) : Coefficient to apply to the backoff (default: 0.95)
+- BACKOFFLIMIT (optional) : Limit coefficient of the backoff (default: 0.1)
 
 # Build & test
 ## Build
