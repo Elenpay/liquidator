@@ -109,6 +109,10 @@ func Test_manageChannelLiquidity(t *testing.T) {
 	//Mock provider invalid reverse swap loop error
 	mockProviderInvalidLoopError := createMockProviderInvalidSwapLoopError(mockCtrl)
 
+	// Wallet and address for reverse swaps
+	var walletId int32 = 1
+	var address string = "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme"
+
 	//Active channel
 	channelActive := &lnrpc.Channel{
 		Active:        true,
@@ -136,12 +140,27 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		args    ManageChannelLiquidityInfo
 		wantErr bool
 	}{
+
 		{
 			name: "Manage channel liquidity test valid reverse swap",
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				nodeguardClient:     mockNodeGuardClient,
+				loopProvider:        mockProvider,
+				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
+				nodeInfo:            nodeInfo,
+				ctx:                 context.TODO(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Manage channel liquidity test valid reverse swap",
+			args: ManageChannelLiquidityInfo{
+				channel:             channelActive,
+				channelBalanceRatio: 0.1,
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: false, ReverseSwapAddress: &address, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProvider,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -155,7 +174,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProvider,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -169,7 +188,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProvider,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -187,7 +206,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 					{
 						ChannelId:            123,
 						NodePubkey:           "03485d8dcdd149c87553eeb80586eb2bece874d412e9f117304446ce189955d375",
-						WalletId:             1,
+						SwapWalletId:         1,
 						MinimumLocalBalance:  20,
 						MinimumRemoteBalance: 80,
 						RebalanceTarget:      60,
@@ -206,7 +225,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProviderInvalid,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -220,7 +239,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.9,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", SwapWalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProviderInvalid,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -234,7 +253,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 			args: ManageChannelLiquidityInfo{
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", WalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
+				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
 				nodeguardClient:     mockNodeGuardClient,
 				loopProvider:        mockProviderInvalidLoopError,
 				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
@@ -384,16 +403,22 @@ func Test_monitorChannel(t *testing.T) {
 		},
 	}, nil).AnyTimes()
 
+	// Wallet id for reverse swaps
+	var walletId *int32 = new(int32)
+	*walletId = 1
+
 	// Liquidity rules for the channel
 	liquidityRules := map[uint64][]nodeguard.LiquidityRule{
 		channel.ChanId: {
 			{
-				ChannelId:            channel.ChanId,
-				NodePubkey:           "",
-				WalletId:             1,
-				MinimumLocalBalance:  20,
-				MinimumRemoteBalance: 80,
-				RebalanceTarget:      50,
+				ChannelId:               channel.ChanId,
+				NodePubkey:              "",
+				SwapWalletId:            1,
+				IsReverseSwapWalletRule: true,
+				ReverseSwapWalletId:     walletId,
+				MinimumLocalBalance:     20,
+				MinimumRemoteBalance:    80,
+				RebalanceTarget:         50,
 			},
 		},
 	}

@@ -568,7 +568,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	//Request nodeguard to send the swap amount to the invoice address
 
 	withdrawalRequest := nodeguard.RequestWithdrawalRequest{
-		WalletId:    rule.WalletId,
+		WalletId:    rule.SwapWalletId,
 		Address:     resp.InvoiceBTCAddress,
 		Amount:      swapAmount,
 		Description: fmt.Sprintf("Swap %v", resp.SwapId),
@@ -585,9 +585,9 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	//Log the swap request
 
 	if withdrawalResponse.IsHotWallet {
-		log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Infof("Swap request sent to nodeguard hot wallet with id: %d for swap id: %v for node: %v", rule.GetSwapWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 	} else {
-		log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
+		log.WithField("span", span).Infof("Swap request sent to nodeguard cold wallet with id: %d for swap id: %v for node: %v ", rule.GetSwapWalletId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 	}
 
 	//Monitor the swap
@@ -636,22 +636,30 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 }
 
 func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
-	//Request nodeguard a new destination address for the reverse swap
-	walletRequest := &nodeguard.GetNewWalletAddressRequest{
-		WalletId: rule.WalletId,
-	}
+	// Check if it is a reverse swap to a wallet or to an address
+	var address string
+	if rule.IsReverseSwapWalletRule {
+		//Request nodeguard a new destination address for the reverse swap
+		walletRequest := &nodeguard.GetNewWalletAddressRequest{
+			WalletId: *rule.ReverseSwapWalletId,
+		}
 
-	addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
-	if err != nil || addrResponse.GetAddress() == "" {
-		log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
-		return err
+		addrResponse, err := info.nodeguardClient.GetNewWalletAddress(info.ctx, walletRequest)
+		if err != nil || addrResponse.GetAddress() == "" {
+			log.WithField("span", span).Errorf("error requesting nodeguard a new wallet address: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
+			return err
+		}
+
+		address = addrResponse.Address
+	} else {
+		address = *rule.ReverseSwapAddress
 	}
 
 	//Perform the swap
 	swapRequest := provider.ReverseSubmarineSwapRequest{
 		SatsAmount:         swapAmount,
 		ChannelSet:         []uint64{channel.GetChanId()},
-		ReceiverBTCAddress: addrResponse.Address,
+		ReceiverBTCAddress: address,
 	}
 
 	log.WithField("span", span).Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", swapRequest.SatsAmount, swapRequest.ReceiverBTCAddress)
