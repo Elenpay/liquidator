@@ -62,7 +62,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		return SubmarineSwapResponse{}, err
 	}
 
-	limitFeesStr := os.Getenv("LIMITFEES")
+	limitFeesStr := viper.GetString("LIMITFEES")
 	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
 	if err != nil {
 		return SubmarineSwapResponse{}, err
@@ -72,7 +72,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
 	if sumFees > maximumFeesAllowed {
-		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees alowed: %d", sumFees, maximumFeesAllowed)
+		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
 		return SubmarineSwapResponse{}, err
 	}
@@ -240,7 +240,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		return ReverseSubmarineSwapResponse{}, err
 	}
 
-	limitFeesStr := os.Getenv("LIMITFEES")
+	limitFeesStr := viper.GetString("LIMITFEES")
 	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
 	if err != nil {
 		return ReverseSubmarineSwapResponse{}, err
@@ -250,7 +250,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
 	
 	if sumFees > maximumFeesAllowed {
-		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees alowed: %d", sumFees, maximumFeesAllowed)
+		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
