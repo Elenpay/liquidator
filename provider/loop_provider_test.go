@@ -3,13 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/hex"
-	"os"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/lightninglabs/loop/looprpc"
+	"github.com/spf13/viper"
 )
 
 func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
@@ -17,7 +17,7 @@ func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	os.Setenv("LIMITFEES", "0.1")
+	viper.Set("LIMITFEES", "0.007")
 
 	//Mock lightning swapClient GetLoopInQuote and LoopIn methods to return fake data
 	swapClient := NewMockSwapClientClient(ctrl)
