@@ -568,10 +568,11 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	//Request nodeguard to send the swap amount to the invoice address
 
 	withdrawalRequest := nodeguard.RequestWithdrawalRequest{
-		WalletId:    rule.SwapWalletId,
-		Address:     resp.InvoiceBTCAddress,
-		Amount:      swapAmount,
-		Description: fmt.Sprintf("Swap %v", resp.SwapId),
+		WalletId:       rule.SwapWalletId,
+		Address:        resp.InvoiceBTCAddress,
+		Amount:         swapAmount,
+		Description:    fmt.Sprintf("Swap %v", resp.SwapId),
+		MempoolFeeRate: nodeguard.FEES_TYPE_ECONOMY_FEE,
 	}
 
 	withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)
