@@ -9,17 +9,20 @@ service NodeGuardService {
 
   Returns the liquidity rules associated to a node and its channels
   */
-  rpc GetLiquidityRules(GetLiquidityRulesRequest) returns (GetLiquidityRulesResponse);
+  rpc GetLiquidityRules(GetLiquidityRulesRequest)
+      returns (GetLiquidityRulesResponse);
 
   /*
   Returns a new unused BTC Address of a given wallet
   */
-  rpc GetNewWalletAddress(GetNewWalletAddressRequest) returns (GetNewWalletAddressResponse);
+  rpc GetNewWalletAddress(GetNewWalletAddressRequest)
+      returns (GetNewWalletAddressResponse);
 
   /*
     Withdraws funds from a given wallet to a given address
     */
-  rpc RequestWithdrawal(RequestWithdrawalRequest) returns (RequestWithdrawalResponse);
+  rpc RequestWithdrawal(RequestWithdrawalRequest)
+      returns (RequestWithdrawalResponse);
   /*
     Adds a new node to the nodeguard
    */
@@ -33,7 +36,8 @@ service NodeGuardService {
   /*
     Gets a list of available wallets
   */
-  rpc GetAvailableWallets(GetAvailableWalletsRequest) returns (GetAvailableWalletsResponse);
+  rpc GetAvailableWallets(GetAvailableWalletsRequest)
+      returns (GetAvailableWalletsResponse);
   /*
     Opens a channel to a given node
    */
@@ -47,22 +51,26 @@ service NodeGuardService {
   /*
     Gets a list of channel operations requests by id
    */
-  rpc GetChannelOperationRequest(GetChannelOperationRequestRequest) returns (GetChannelOperationRequestResponse);
+  rpc GetChannelOperationRequest(GetChannelOperationRequestRequest)
+      returns (GetChannelOperationRequestResponse);
 
   /*
   Adds a liquidity rule to a channel
    */
-  rpc AddLiquidityRule(AddLiquidityRuleRequest) returns (AddLiquidityRuleResponse);
+  rpc AddLiquidityRule(AddLiquidityRuleRequest)
+      returns (AddLiquidityRuleResponse);
 
   /*
   Gets a list of available UTXOs for a wallet
    */
-  rpc GetAvailableUtxos(GetAvailableUtxosRequest) returns (GetAvailableUtxosResponse);
+  rpc GetAvailableUtxos(GetAvailableUtxosRequest)
+      returns (GetAvailableUtxosResponse);
 
   /*
   Gets the status for the provided withdrawals request ids
    */
-  rpc GetWithdrawalsRequestStatus(GetWithdrawalsRequestStatusRequest) returns (GetWithdrawalsRequestStatusResponse);
+  rpc GetWithdrawalsRequestStatus(GetWithdrawalsRequestStatusRequest)
+      returns (GetWithdrawalsRequestStatusResponse);
 
   /*
   Gets a channel by id
@@ -70,9 +78,7 @@ service NodeGuardService {
   rpc GetChannel(GetChannelRequest) returns (GetChannelResponse);
 }
 
-message GetLiquidityRulesRequest {
-  string node_pubkey = 1;
-}
+message GetLiquidityRulesRequest { string node_pubkey = 1; }
 
 message GetLiquidityRulesResponse {
   repeated LiquidityRule liquidity_rules = 1;
@@ -90,13 +96,9 @@ message LiquidityRule {
   bool is_reverse_swap_wallet_rule = 9;
 }
 
-message GetNewWalletAddressRequest {
-  int32 wallet_id = 1;
-}
+message GetNewWalletAddressRequest { int32 wallet_id = 1; }
 
-message GetNewWalletAddressResponse {
-  string address = 1;
-}
+message GetNewWalletAddressResponse { string address = 1; }
 
 message RequestWithdrawalRequest {
   int32 wallet_id = 1;
@@ -110,6 +112,10 @@ message RequestWithdrawalRequest {
   bool changeless = 6;
   // Outpoints for the UTXOs to use for the withdrawal
   repeated string utxos_outpoints = 7;
+  // MempoolRecommended fee rate
+  FEES_TYPE mempool_fee_rate = 8;
+  // Fee rate in sat/vbyte
+  optional int32 custom_fee_rate = 9;
 }
 
 message RequestWithdrawalResponse {
@@ -130,21 +136,17 @@ message GetAvailableWalletsRequest {
   optional WALLET_TYPE wallet_type = 2;
 }
 
-message AccountKeySettings  {
-  string xpub = 1;
-}
-message Wallet  {
+message AccountKeySettings { string xpub = 1; }
+message Wallet {
   int32 id = 1;
   string name = 2;
   bool is_hot_wallet = 3;
   repeated AccountKeySettings account_key_settings = 4;
   int32 threshold = 5;
 }
-message GetAvailableWalletsResponse {
-  repeated Wallet wallets = 1;
-}
+message GetAvailableWalletsResponse { repeated Wallet wallets = 1; }
 
-message AddNodeRequest{
+message AddNodeRequest {
   string pub_key = 1;
   string name = 2;
   string description = 3;
@@ -152,14 +154,14 @@ message AddNodeRequest{
   string channel_admin_macaroon = 4;
   // Endpoint of the node in the form of host:port (gRPC)
   string endpoint = 5;
-  // Whether this node's hot wallet should be autoswept to the returning funds wallet
-  bool   autosweep_enabled = 6;
+  // Whether this node's hot wallet should be autoswept to the returning funds
+  // wallet
+  bool autosweep_enabled = 6;
   // Wallet ID as stored in the NG's database for use in autosweep ops
   int32 returning_funds_wallet_id = 7;
 }
 
-message AddNodeResponse{
-}
+message AddNodeResponse {}
 
 message Node {
   // Node Id as in NodeGuard's database
@@ -169,28 +171,26 @@ message Node {
   string description = 4;
   // Endpoint of the node in the form of host:port (gRPC)
   string endpoint = 5;
-  // Whether this node's hot wallet should be autoswept to the returning funds wallet
+  // Whether this node's hot wallet should be autoswept to the returning funds
+  // wallet
   bool autosweep_enabled = 6;
   // Wallet ID as stored in the NG's database for use in autosweep ops
   int32 returning_funds_wallet_id = 7;
-
 }
 
-message GetNodesRequest{
+message GetNodesRequest {
   // Whether to include nodes that are not managed by the NG
   bool include_unmanaged = 1;
 }
 
-message GetNodesResponse{
-  repeated Node nodes = 1;
-}
+message GetNodesResponse { repeated Node nodes = 1; }
 
 enum FEES_TYPE {
-  CUSTOM_FEE = 0;
+  ECONOMY_FEE = 0;
   FASTEST_FEE = 1;
   HOUR_FEE = 2;
   HALF_HOUR_FEE = 3;
-  ECONOMY_FEE = 4;
+  CUSTOM_FEE = 4;
 }
 
 message OpenChannelRequest {
@@ -214,10 +214,9 @@ message OpenChannelRequest {
   optional int32 custom_fee_rate = 9;
 }
 
-// A successful response returns the channel_operation_request_id but it does NOT indicate that the channel has been open, external monitoring is required
-message OpenChannelResponse {
-  int32 channel_operation_request_id = 1;
-}
+// A successful response returns the channel_operation_request_id but it does
+// NOT indicate that the channel has been open, external monitoring is required
+message OpenChannelResponse { int32 channel_operation_request_id = 1; }
 
 message CloseChannelRequest {
   // Channel ID as returned by the Lightning implementation
@@ -226,9 +225,9 @@ message CloseChannelRequest {
   bool force = 2;
 }
 
-// A successful response is an empty message and does NOT indicate that the channel has been closed, external monitoring is required
-message CloseChannelResponse {
-}
+// A successful response is an empty message and does NOT indicate that the
+// channel has been closed, external monitoring is required
+message CloseChannelResponse {}
 
 message GetChannelOperationRequestRequest {
   // Whether to include requests that are not managed by the NG
@@ -292,12 +291,11 @@ message AddLiquidityRuleResponse {
   int32 rule_id = 1;
 }
 
-enum COIN_SELECTION_STRATEGY
-{
-    SMALLEST_FIRST = 0;
-    BIGGEST_FIRST = 1;
-    CLOSEST_TO_TARGET_FIRST = 2;
-    UP_TO_AMOUNT = 3;
+enum COIN_SELECTION_STRATEGY {
+  SMALLEST_FIRST = 0;
+  BIGGEST_FIRST = 1;
+  CLOSEST_TO_TARGET_FIRST = 2;
+  UP_TO_AMOUNT = 3;
 }
 
 message GetAvailableUtxosRequest {
@@ -309,7 +307,8 @@ message GetAvailableUtxosRequest {
   optional int32 limit = 3;
   // Amount in satoshis
   optional int64 amount = 4;
-  // Order the UTXOs by closest to the amount specified if the strategy selected is CLOSEST_TO_TARGET_FIRST
+  // Order the UTXOs by closest to the amount specified if the strategy selected
+  // is CLOSEST_TO_TARGET_FIRST
   optional int64 closestTo = 5;
 }
 
@@ -324,17 +323,15 @@ message GetAvailableUtxosResponse {
 }
 
 enum WITHDRAWAL_REQUEST_STATUS {
-    WITHDRAWAL_SETTLED = 0;
-    WITHDRAWAL_PENDING_APPROVAL = 1;
-    WITHDRAWAL_CANCELLED = 2;
-    WITHDRAWAL_REJECTED = 3;
-    WITHDRAWAL_PENDING_CONFIRMATION = 4;
-    WITHDRAWAL_FAILED = 5;
+  WITHDRAWAL_SETTLED = 0;
+  WITHDRAWAL_PENDING_APPROVAL = 1;
+  WITHDRAWAL_CANCELLED = 2;
+  WITHDRAWAL_REJECTED = 3;
+  WITHDRAWAL_PENDING_CONFIRMATION = 4;
+  WITHDRAWAL_FAILED = 5;
 }
 
-message GetWithdrawalsRequestStatusRequest {
-  repeated int32 request_ids = 1;
-}
+message GetWithdrawalsRequestStatusRequest { repeated int32 request_ids = 1; }
 
 message WithdrawalRequest {
   int32 request_id = 1;
