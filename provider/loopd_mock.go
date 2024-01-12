@@ -42,6 +42,26 @@ func (m *MockSwapClientClient) EXPECT() *MockSwapClientClientMockRecorder {
 	return m.recorder
 }
 
+// AbandonSwap mocks base method.
+func (m *MockSwapClientClient) AbandonSwap(ctx context.Context, in *looprpc.AbandonSwapRequest, opts ...grpc.CallOption) (*looprpc.AbandonSwapResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "AbandonSwap", varargs...)
+	ret0, _ := ret[0].(*looprpc.AbandonSwapResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AbandonSwap indicates an expected call of AbandonSwap.
+func (mr *MockSwapClientClientMockRecorder) AbandonSwap(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AbandonSwap", reflect.TypeOf((*MockSwapClientClient)(nil).AbandonSwap), varargs...)
+}
+
 // GetInfo mocks base method.
 func (m *MockSwapClientClient) GetInfo(ctx context.Context, in *looprpc.GetInfoRequest, opts ...grpc.CallOption) (*looprpc.GetInfoResponse, error) {
 	m.ctrl.T.Helper()
@@ -486,6 +506,21 @@ func NewMockSwapClientServer(ctrl *gomock.Controller) *MockSwapClientServer {
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockSwapClientServer) EXPECT() *MockSwapClientServerMockRecorder {
 	return m.recorder
+}
+
+// AbandonSwap mocks base method.
+func (m *MockSwapClientServer) AbandonSwap(arg0 context.Context, arg1 *looprpc.AbandonSwapRequest) (*looprpc.AbandonSwapResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AbandonSwap", arg0, arg1)
+	ret0, _ := ret[0].(*looprpc.AbandonSwapResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AbandonSwap indicates an expected call of AbandonSwap.
+func (mr *MockSwapClientServerMockRecorder) AbandonSwap(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AbandonSwap", reflect.TypeOf((*MockSwapClientServer)(nil).AbandonSwap), arg0, arg1)
 }
 
 // GetInfo mocks base method.
