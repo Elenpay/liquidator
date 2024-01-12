@@ -11,18 +11,19 @@ Usage:
   liquidator [flags]
 
 Flags:
+      --backoffCoefficient float       Coefficient to apply to the backoff (default 0.95)
+      --backoffLimit float             Limit coefficient of the backoff (default 0.1)
   -h, --help                           help for liquidator
+      --limitFees float                Limit fees for swaps e.g. 0.01 = 1% (default 0.007)
       --lndconnecturis string          CSV of lndconnect strings to connect to lnd(s)
-      --backoffCoefficient float       Coefficient to apply to the backoff (default: 0.95)
-      --backoffLimit float             Limit coefficient of the backoff (default: 0.1)
-      --limitFees float                Limit to total Swap Fees (default 0.007 -> 0.7% Swap size)
       --logFormat string               Log format from: {text, json} (default "text")
       --logLevel string                Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
       --loopdconnecturis string        CSV of loopdconnect strings to connect to loopd(s)
       --nodeguardHost string           Hostname:port to connect to nodeguard
       --pollingInterval string         Interval to poll data (default "15s")
-      --retriesBeforeBackoff int       Number of retries before applying backoff to the swap (default: 3)
-      --swapPublicationOffset string   Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default "30m")
+      --retriesBeforeBackoff int       Number of retries before applying backoff to the swap (default 3)
+      --swapPublicationOffset string   Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default "60m")
+      --sweepConfTarget string         Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution (default "400")
 ```
 # Requirements
 This project uses [just](https://github.com/casey/just) with the following recipes
