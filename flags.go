@@ -98,7 +98,7 @@ func init() {
 	viper.BindPFlag("nodeguardHost", rootCmd.Flags().Lookup("nodeguardHost"))
 
 	//Swap Publication Offset in minutes
-	rootCmd.Flags().String("swapPublicationOffset", "30m", "Swap publication deadline offset (Maximum time for the swap provider to publish the swap)")
+	rootCmd.Flags().String("swapPublicationOffset", "60m", "Swap publication deadline offset (Maximum time for the swap provider to publish the swap)")
 	viper.BindPFlag("swapPublicationOffset", rootCmd.Flags().Lookup("swapPublicationOffset"))
 
 	// Retries before applying backoff to the swap
@@ -116,6 +116,10 @@ func init() {
 	// Limit fees for swaps
 	rootCmd.Flags().Float64("limitFees", 0.007, "Limit fees for swaps e.g. 0.01 = 1%")
 	viper.BindPFlag("limitFees", rootCmd.Flags().Lookup("limitFees"))
+
+	//Sweep conf
+	rootCmd.Flags().String("sweepConfTarget", "400", "Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution")
+	viper.BindPFlag("sweepConfTarget", rootCmd.Flags().Lookup("sweepConfTarget"))
 
 	//Now we set the global vars
 

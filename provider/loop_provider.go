@@ -247,7 +247,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	sumFees := quote.SwapFeeSat + quote.HtlcSweepFeeSat + quote.PrepayAmtSat
 	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
-	
+
 	if sumFees > maximumFeesAllowed {
 		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
@@ -272,7 +272,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
 		MaxSwapRoutingFee:   int64(limits.maxSwapRoutingFee),
 		OutgoingChanSet:     request.ChannelSet,
-		SweepConfTarget:     3, //TODO Make this configurable
+		SweepConfTarget:     viper.GetInt32("sweepConfTarget"), 
 		HtlcConfirmations:   3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
