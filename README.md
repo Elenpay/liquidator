@@ -72,9 +72,9 @@ All the flags can be set as environment variables, with the following format, ex
 - RETRIESBEFOREBACKOFF (optional) : Number of retries before applying backoff to the swap (default: 3)
 - BACKOFFCOEFFICIENT (optional) : Coefficient to apply to the backoff (default: 0.95)
 - BACKOFFLIMIT (optional) : Limit coefficient of the backoff (default: 0.1)
-- SLEEPBETWEENRETRIESMS (optional) : Base time to sleep between retries (default: 500ms)
-- SLEEPBETWEENRETRIESBACKOFF (optional) : Coefficient to apply to the backoff (default: 1.05)
-- SLEEPMAX (optional) : Maximum time to sleep between retries (default: 60)
+- SLEEPBETWEENRETRIES (optional) : Base time to sleep between retries (default: 500ms)
+- SLEEPBETWEENRETRIESBACKOFF (optional) : Coefficient to apply to the backoff (default: 1.5)
+- SLEEPMAX (optional) : Maximum time to sleep between retries (default: 60s)
 
 # Build & test
 
