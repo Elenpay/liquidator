@@ -621,6 +621,9 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
 				newSecondsAmount := sleepBetweenRetries.Seconds() * sleepBetweenRetriesBackoff
 				newSleepBetweenRetries := time.Duration(newSecondsAmount) * time.Second
+				if newSleepBetweenRetries > sleepMax {
+					newSleepBetweenRetries = sleepMax
+				}
 				err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, newSleepBetweenRetries)
 				if err != nil {
 					return err
@@ -679,6 +682,7 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
 			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
+				time.Sleep(sleepBetweenRetries)
 				err = performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, sleepBetweenRetries)
 				if err != nil {
 					return err
@@ -717,6 +721,9 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
 				newSecondsAmount := sleepBetweenRetries.Seconds() * sleepBetweenRetriesBackoff
 				newSleepBetweenRetries := time.Duration(newSecondsAmount) * time.Second
+				if newSleepBetweenRetries > sleepMax {
+					newSleepBetweenRetries = sleepMax
+				}
 				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, newSleepBetweenRetries)
 				if err != nil {
 					return err
