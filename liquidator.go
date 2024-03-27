@@ -30,12 +30,15 @@ import (
 )
 
 var (
-	prometheusMetrics  *metrics
-	rulesCache         cache.Cache
-	retries            int
-	backoffCoefficient float64
-	backoffLimit       float64
-	limitFees          float64
+	prometheusMetrics          *metrics
+	rulesCache                 cache.Cache
+	retries                    int
+	backoffCoefficient         float64
+	backoffLimit               float64
+	limitFees                  float64
+	sleepBetweenRetries        time.Duration
+	sleepBetweenRetriesBackoff float64
+	sleepMax                   time.Duration
 )
 
 // Entrypoint of liquidator main logic
@@ -475,7 +478,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			retryCounter := 1
 
-			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget, sleepBetweenRetries)
 			if err != nil {
 				return err
 			}
@@ -495,7 +498,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			retryCounter := 1
 
-			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget, sleepBetweenRetries)
 			if err != nil {
 				return err
 			}
@@ -507,7 +510,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 }
 
-func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
+func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64, sleepBetweenRetries time.Duration) error {
 	//Perform the swap
 	swapRequest := provider.SubmarineSwapRequest{
 		SatsAmount:    swapAmount,
@@ -606,15 +609,22 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 			//Retry the swap
 			retryCounter++
 			log.WithField("span", span).Infof("retrying swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
-			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			time.Sleep(sleepBetweenRetries)
+			err := performSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget, sleepBetweenRetries)
 			if err != nil {
 				return err
 			}
 		} else {
 			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
 			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
+				time.Sleep(sleepBetweenRetries)
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
-				err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				newSecondsAmount := sleepBetweenRetries.Seconds() * sleepBetweenRetriesBackoff
+				newSleepBetweenRetries := time.Duration(newSecondsAmount) * time.Second
+				if newSleepBetweenRetries > sleepMax {
+					newSleepBetweenRetries = sleepMax
+				}
+				err := performSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, newSleepBetweenRetries)
 				if err != nil {
 					return err
 				}
@@ -636,7 +646,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	return nil
 }
 
-func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64) error {
+func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAmount int64, rule nodeguard.LiquidityRule, span trace.Span, loopdCtx context.Context, retryCounter int, swapAmountTarget int64, sleepBetweenRetries time.Duration) error {
 	// Check if it is a reverse swap to a wallet or to an address
 	var address string
 	if rule.IsReverseSwapWalletRule {
@@ -672,7 +682,8 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
 			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
-				err = performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				time.Sleep(sleepBetweenRetries)
+				err = performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, sleepBetweenRetries)
 				if err != nil {
 					return err
 				}
@@ -698,15 +709,22 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 			//Retry the swap
 			retryCounter++
 			log.WithField("span", span).Infof("retrying reverse swap for channel %v, retry number: %v/%v on node %v", channel.GetChanId(), retryCounter, retries, info.nodeInfo.GetIdentityPubkey())
-			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget)
+			time.Sleep(sleepBetweenRetries)
+			err := performReverseSwap(info, channel, swapAmount, rule, span, loopdCtx, retryCounter, swapAmountTarget, sleepBetweenRetries)
 			if err != nil {
 				return err
 			}
 		} else {
 			limitSwapAmount := float64(helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))) * backoffLimit
 			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
+				time.Sleep(sleepBetweenRetries)
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
-				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget)
+				newSecondsAmount := sleepBetweenRetries.Seconds() * sleepBetweenRetriesBackoff
+				newSleepBetweenRetries := time.Duration(newSecondsAmount) * time.Second
+				if newSleepBetweenRetries > sleepMax {
+					newSleepBetweenRetries = sleepMax
+				}
+				err := performReverseSwap(info, channel, newSwapAmount, rule, span, loopdCtx, 0, swapAmountTarget, newSleepBetweenRetries)
 				if err != nil {
 					return err
 				}
