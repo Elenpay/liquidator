@@ -30,12 +30,15 @@ import (
 )
 
 var (
-	prometheusMetrics  *metrics
-	rulesCache         cache.Cache
-	retries            int
-	backoffCoefficient float64
-	backoffLimit       float64
-	limitFees          float64
+	prometheusMetrics          *metrics
+	rulesCache                 cache.Cache
+	retries                    int
+	backoffCoefficient         float64
+	backoffLimit               float64
+	limitFees                  float64
+	sleepBetweenRetries        time.Duration
+	sleepBetweenRetriesBackoff float64
+	sleepMax                   time.Duration
 )
 
 // Entrypoint of liquidator main logic

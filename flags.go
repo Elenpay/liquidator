@@ -24,6 +24,7 @@ package main
 import (
 	"os"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -121,6 +122,18 @@ func init() {
 	rootCmd.Flags().String("sweepConfTarget", "400", "Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution")
 	viper.BindPFlag("sweepConfTarget", rootCmd.Flags().Lookup("sweepConfTarget"))
 
+	//Sleep between retries
+	rootCmd.Flags().Duration("sleepBetweenRetries", 500*time.Millisecond, "Sleep between retries")
+	viper.BindPFlag("sleepBetweenRetries", rootCmd.Flags().Lookup("sleepBetweenRetries"))
+
+	//Sleep between retries backoff
+	rootCmd.Flags().Float64("sleepBetweenRetriesBackoff", 1.5, "Sleep between retries backoff")
+	viper.BindPFlag("sleepBetweenRetriesBackoff", rootCmd.Flags().Lookup("sleepBetweenRetriesBackoff"))
+
+	//Sleep max
+	rootCmd.Flags().Duration("sleepMax", 60*time.Second, "Sleep max")
+	viper.BindPFlag("sleepMax", rootCmd.Flags().Lookup("sleepMax"))
+
 	//Now we set the global vars
 
 	pollingInterval = viper.GetDuration("pollingInterval")
@@ -132,6 +145,10 @@ func init() {
 	backoffCoefficient = viper.GetFloat64("backoffCoefficient")
 	backoffLimit = viper.GetFloat64("backoffLimit")
 	limitFees = viper.GetFloat64("limitFees")
+
+	sleepBetweenRetries = viper.GetDuration("sleepBetweenRetries")
+	sleepBetweenRetriesBackoff = viper.GetFloat64("sleepBetweenRetriesBackoff")
+	sleepMax = viper.GetDuration("sleepMax")
 
 	//Set log level and format
 
