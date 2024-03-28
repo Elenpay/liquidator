@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/spf13/viper"
+	gomock "go.uber.org/mock/gomock"
 )
 
 func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
