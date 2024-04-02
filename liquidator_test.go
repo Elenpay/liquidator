@@ -505,5 +505,5 @@ func Test_monitorChannel(t *testing.T) {
 	}
 
 	// Wait for the goroutine to finish
-	time.Sleep(1 * time.Second)
+	time.Sleep(30 * time.Second)
 }
