@@ -175,5 +175,9 @@ func init() {
 	log.Debug("nodeguardHost: ", nodeguardHost)
 	log.Debug("retriesBeforeBackoff: ", viper.GetInt("retriesBeforeBackoff"))
 	log.Debug("backoffCoefficient: ", viper.GetFloat64("backoffCoefficient"))
-
+	log.Debug("backoffLimit: ", viper.GetFloat64("backoffLimit"))
+	log.Debug("limitFees: ", viper.GetFloat64("limitFees"))
+	log.Debug("sleepBetweenRetries: ", viper.GetDuration("sleepBetweenRetries"))
+	log.Debug("sleepBetweenRetriesBackoff: ", viper.GetFloat64("sleepBetweenRetriesBackoff"))
+	log.Debug("sleepMax: ", viper.GetDuration("sleepMax"))
 }
