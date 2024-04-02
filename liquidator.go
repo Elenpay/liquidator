@@ -719,8 +719,8 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 			if limitSwapAmount < float64(swapAmount)*backoffCoefficient {
 				time.Sleep(sleepBetweenRetries)
 				newSwapAmount := int64(float64(swapAmount) * backoffCoefficient)
-				newSecondsAmount := sleepBetweenRetries.Seconds() * sleepBetweenRetriesBackoff
-				newSleepBetweenRetries := time.Duration(newSecondsAmount) * time.Second
+				newMsAmount := float64((sleepBetweenRetries.Milliseconds())) * sleepBetweenRetriesBackoff
+				newSleepBetweenRetries := time.Duration(newMsAmount) * time.Millisecond
 				if newSleepBetweenRetries > sleepMax {
 					newSleepBetweenRetries = sleepMax
 				}
