@@ -466,31 +466,36 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
 
 			log.WithField("span", span).Infof("rebalancing via invoice on channel %v on node %v", channel.GetChanId(), info.nodeInfo.GetAlias())
+			var payerPubKey string
+			var payeePubKey string
+			var swapAmount int64
 
 			switch {
 			//Create an invoice for the swap amount from the remote node and pay with the rule's node
 			case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 				{
-					swapAmount := helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
+					swapAmount = helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
 
-					err := invoiceRebalance(info, swapAmount, rule.NodePubkey, rule.RemoteNodePubkey)
-					if err != nil {
-						return err
-					}
+					payerPubKey = rule.NodePubkey
+					payeePubKey = rule.RemoteNodePubkey
 
 				}
 			//Create an invoice for the swap amount from the rule's node and pay with the remote node
 			case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
 				{
-					swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
+					swapAmount = helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
-					err := invoiceRebalance(info, swapAmount, rule.RemoteNodePubkey, rule.NodePubkey)
-					if err != nil {
-						return err
-					}
+					payerPubKey = rule.RemoteNodePubkey
+					payeePubKey = rule.NodePubkey
 				}
 
 			}
+
+			err := invoiceRebalance(info, swapAmount, payerPubKey, payeePubKey)
+			if err != nil {
+				return err
+			}
+
 		}
 	case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 		{
