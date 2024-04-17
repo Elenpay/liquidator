@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Elenpay/liquidator/errors"
+	"github.com/Elenpay/liquidator/customerrors"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/routing/route"
@@ -149,7 +149,7 @@ func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapCli
 			id := hex.EncodeToString(swap.GetIdBytes())
 			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
 
-			swapInProgressErr := errors.SwapInProgressError{
+			swapInProgressErr := customerrors.SwapInProgressError{
 				Message: errMessage,
 			}
 
@@ -195,7 +195,7 @@ func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.
 			id := hex.EncodeToString(swap.GetIdBytes())
 			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
 
-			swapInProgressErr := errors.SwapInProgressError{
+			swapInProgressErr := customerrors.SwapInProgressError{
 				Message: errMessage,
 			}
 
@@ -272,7 +272,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
 		MaxSwapRoutingFee:   int64(limits.maxSwapRoutingFee),
 		OutgoingChanSet:     request.ChannelSet,
-		SweepConfTarget:     viper.GetInt32("sweepConfTarget"), 
+		SweepConfTarget:     viper.GetInt32("sweepConfTarget"),
 		HtlcConfirmations:   3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),

@@ -1,4 +1,4 @@
-package errors
+package customerrors
 
 // Error type for when a swap is in progress
 type SwapInProgressError struct {
