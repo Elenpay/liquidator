@@ -8,12 +8,12 @@ import (
 
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
-	gomock "github.com/golang/mock/gomock"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/goleak"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // Tear up method
