@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Elenpay/liquidator/cache"
-	"github.com/Elenpay/liquidator/errors"
+	"github.com/Elenpay/liquidator/customerrors"
 	"github.com/Elenpay/liquidator/helper"
 	"github.com/Elenpay/liquidator/lndconnect"
 	"github.com/Elenpay/liquidator/nodeguard"
@@ -71,6 +72,9 @@ func startLiquidator() {
 
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
+	lightningClients := make(map[string]lnrpc.LightningClient)
+	nodeCtxs := make(map[string]context.Context)
+
 	for i, lndconnectURI := range lndconnectURIs {
 
 		//parse lndconnectURI
@@ -102,8 +106,6 @@ func startLiquidator() {
 		}
 		defer conn.Close()
 
-		//TODO Add support for multiple providers in the future
-
 		//Create SwapClient to communicate with loopd
 
 		swapClient, swapConn, err := rpc.CreateSwapClientClient(loopdConnectParams)
@@ -131,21 +133,26 @@ func startLiquidator() {
 			log.Fatalf("no macaroon provided for node %v", lndconnectURI)
 		}
 
-		nodeContext, err := helper.GenerateContextWithMacaroon(nodeMacaroon, context.Background())
+		nodeCtx, err := helper.GenerateContextWithMacaroon(nodeMacaroon, context.Background())
 		if err != nil {
 			log.Fatal("failed to generate context with macaroon")
 		}
 
 		//Get the local node info
-		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeContext)
+		nodeInfo, err := getLocalNodeInfo(lightningClient, nodeCtx)
 		if err != nil {
 			log.Fatalf("failed to get local node info: %v", err)
 		}
 
+		nodeCtxs[nodeInfo.IdentityPubkey] = nodeCtx
+
+		//Store the lightning client in a map so that it can be used later
+		lightningClients[nodeInfo.IdentityPubkey] = lightningClient
+
 		wg.Add(1)
 
 		//Start a goroutine to poll nodeguard for liquidation rules for this node
-		go startNodeGuardPolling(nodeInfo, nodeguardClient, nodeContext)
+		go startNodeGuardPolling(nodeInfo, nodeguardClient, nodeCtx)
 
 		//Start a goroutine to monitor the channels of the node
 		lndconnectParams, err := lndconnect.Parse(lndconnectURI)
@@ -155,14 +162,17 @@ func startLiquidator() {
 		}
 
 		go monitorChannels(MonitorChannelsInfo{
-			nodeHost:        lndconnectParams.Host + ":" + lndconnectParams.Port,
-			nodeInfo:        nodeInfo,
-			nodeMacaroon:    nodeMacaroon,
-			loopdMacaroon:   loopdMacaroon,
-			lightningClient: lightningClient,
-			nodeguardClient: nodeguardClient,
-			swapClient:      swapClient,
-			nodeCtx:         nodeContext,
+			BaseInfo: BaseInfo{
+				nodeHost:         lndconnectParams.Host + ":" + lndconnectParams.Port,
+				nodeInfo:         nodeInfo,
+				nodeMacaroon:     nodeMacaroon,
+				loopdMacaroon:    loopdMacaroon,
+				lightningClients: lightningClients,
+				nodeguardClient:  nodeguardClient,
+				swapClient:       swapClient,
+				nodeCtxs:         nodeCtxs,
+				provider:         &provider.LoopProvider{},
+			},
 		})
 
 	}
@@ -274,15 +284,12 @@ func monitorChannels(info MonitorChannelsInfo) {
 		log.Error(err)
 	}
 
-	//Loop provider
-	loopProvider := provider.LoopProvider{}
-
 	prevChannels := []*lnrpc.Channel{}
 
 	//Infinite loop to monitor channels
 	for {
 		//Call ListChannels method of lightning client with metadata headers
-		response, err := info.lightningClient.ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{
+		response, err := info.lightningClients[info.nodeInfo.IdentityPubkey].ListChannels(info.nodeCtxs[info.nodeInfo.IdentityPubkey], &lnrpc.ListChannelsRequest{
 			ActiveOnly: false,
 		})
 
@@ -309,7 +316,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 			}
 			if !found {
 				//Remove channel balance metric
-				deleteChannelBalanceMetric(info.nodeHost, channel, info.lightningClient, info.nodeCtx)
+				deleteChannelBalanceMetric(info.nodeHost, channel, info.lightningClients[info.nodeInfo.IdentityPubkey], info.nodeCtxs[info.nodeInfo.IdentityPubkey])
 			}
 		}
 
@@ -328,16 +335,10 @@ func monitorChannels(info MonitorChannelsInfo) {
 			log.Debugf("monitoring Channel Id: %v", channel.ChanId)
 
 			go monitorChannel(MonitorChannelInfo{
+				BaseInfo:         info.BaseInfo,
 				channel:          channel,
-				nodeHost:         info.nodeHost,
-				lightningClient:  info.lightningClient,
-				context:          info.nodeCtx,
+				context:          info.nodeCtxs[info.nodeInfo.IdentityPubkey],
 				liquidationRules: liquidationRules,
-				swapClient:       info.swapClient,
-				nodeguardClient:  info.nodeguardClient,
-				loopProvider:     &loopProvider,
-				loopdMacaroon:    info.loopdMacaroon,
-				nodeInfo:         info.nodeInfo,
 			})
 
 		}
@@ -370,7 +371,7 @@ func monitorChannel(info MonitorChannelInfo) {
 	}
 	log.Debugf("channel balance ratio for node %v channel %v is %v", info.nodeHost, info.channel.GetChanId(), channelBalanceRatio)
 
-	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClient, spanCtx)
+	recordChannelBalanceMetric(info.nodeHost, info.channel, channelBalanceRatio, info.lightningClients[info.nodeInfo.IdentityPubkey], spanCtx)
 
 	if info.liquidationRules == nil {
 		return
@@ -380,14 +381,10 @@ func monitorChannel(info MonitorChannelInfo) {
 
 	//Manage liquidity if there are no pending htlcs
 	err = manageChannelLiquidity(ManageChannelLiquidityInfo{
+		BaseInfo:            info.BaseInfo,
 		channel:             info.channel,
 		channelBalanceRatio: channelBalanceRatio,
 		channelRules:        &channelRules,
-		swapClientClient:    info.swapClient,
-		nodeguardClient:     info.nodeguardClient,
-		loopProvider:        info.loopProvider,
-		loopdMacaroon:       info.loopdMacaroon,
-		nodeInfo:            info.nodeInfo,
 		ctx:                 spanCtx,
 	})
 
@@ -396,7 +393,7 @@ func monitorChannel(info MonitorChannelInfo) {
 		//if err is not of type SwapInProgressError, record it
 
 		switch err.(type) {
-		case *errors.SwapInProgressError:
+		case *customerrors.SwapInProgressError:
 
 		default:
 			span.RecordError(err)
@@ -459,9 +456,50 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 	}
 
 	switch {
+	//Both nodes are managed, then simply create 1 invoice and send it to the other node to pay it
+	case info.lightningClients[rule.NodePubkey] != nil && info.lightningClients[rule.RemoteNodePubkey] != nil:
+		{
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "invoiceRebalance"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
 
+			log.WithField("span", span).Infof("rebalancing via invoice on channel %v on node %v", channel.GetChanId(), info.nodeInfo.GetAlias())
+			var payerPubKey string
+			var payeePubKey string
+			var swapAmount int64
+
+			switch {
+			//Create an invoice for the swap amount from the remote node and pay with the rule's node
+			case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
+				{
+					swapAmount = helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
+
+					payerPubKey = rule.NodePubkey
+					payeePubKey = rule.RemoteNodePubkey
+
+				}
+			//Create an invoice for the swap amount from the rule's node and pay with the remote node
+			case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
+				{
+					swapAmount = helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
+
+					payerPubKey = rule.RemoteNodePubkey
+					payeePubKey = rule.NodePubkey
+				}
+
+			}
+
+			err := invoiceRebalance(info, swapAmount, payerPubKey, payeePubKey)
+			if err != nil {
+				return err
+			}
+
+		}
 	case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 		{
+			swapAmount := helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
 			//If the balance ratio is below the minimum threshold, perform a reverse swap to increase the local balance
 
 			//Add attribute to the span of swap requested
@@ -469,9 +507,6 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
 			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
-
-			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
 			retryCounter := 1
 
@@ -482,6 +517,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		}
 	case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
 		{
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 			//The balance ratio is above the maximum threshold, perform a swap to increase the remote balance
 
 			//Add attribute to the span of swap requested
@@ -489,9 +525,6 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
 			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
 			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
-
-			//Calculate the swap amount
-			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
 			retryCounter := 1
 
@@ -502,6 +535,43 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 		}
 
 	}
+
+	return nil
+}
+
+// Creates one invoice in payee node and pays it with the payer node
+func invoiceRebalance(info ManageChannelLiquidityInfo, swapAmount int64, payerPubKey string, payeePubKey string) error {
+
+	if swapAmount <= 0 {
+		return errors.New("swap amount is <= 0")
+	}
+
+	//Create an invoice for the swap amount
+	invoiceRequest := &lnrpc.Invoice{
+		Memo:  fmt.Sprintf("Invoice rebalance for channel %v on date %v", info.channel.GetChanId(), time.Now().Format("2006-01-02 15:04:05")),
+		Value: swapAmount,
+	}
+
+	payeeLnClient := info.lightningClients[payeePubKey]
+	payerLnClient := info.lightningClients[payerPubKey]
+
+	invoiceResponse, err := payeeLnClient.AddInvoice(info.nodeCtxs[payeePubKey], invoiceRequest)
+	if err != nil {
+		return err
+	}
+
+	sendResponse, err := payerLnClient.SendPaymentSync(info.nodeCtxs[payerPubKey], &lnrpc.SendRequest{
+		PaymentRequest: invoiceResponse.PaymentRequest,
+	})
+	if err != nil {
+		return err
+	}
+
+	if sendResponse.PaymentError != "" {
+		return errors.New(sendResponse.PaymentError)
+	}
+
+	log.Infof("invoice rebalance successful for channel %v on node %v", info.channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())
 
 	return nil
 
@@ -517,7 +587,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	//Log including channel.GetChanId() and swapAmount
 	log.WithField("span", span).Infof("requesting submarine swap with amount: %d sats to node %s, channel: %v", swapRequest.SatsAmount, info.nodeInfo.GetIdentityPubkey(), channel.GetChanId())
 
-	resp, err := info.loopProvider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+	resp, err := info.provider.RequestSubmarineSwap(loopdCtx, swapRequest, info.swapClient)
 	if err != nil {
 		log.WithField("span", span).Errorf("error requesting swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 		return err
@@ -534,7 +604,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 		for i := 0; i < 10; i++ {
 			//Get the swap status
 
-			swapStatus, err := info.loopProvider.GetSwapStatus(loopdCtx, resp.SwapId, info.swapClientClient)
+			swapStatus, err := info.provider.GetSwapStatus(loopdCtx, resp.SwapId, info.swapClient)
 
 			if err != nil {
 				return err
@@ -592,7 +662,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	}
 
 	//Monitor the swap
-	swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+	swapStatus, err := info.provider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClient)
 	if err != nil {
 		return err
 	}
@@ -665,7 +735,7 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 
 	log.WithField("span", span).Infof("requesting reverse submarine swap with amount: %d sats to BTC Address %s", swapRequest.SatsAmount, swapRequest.ReceiverBTCAddress)
 
-	resp, err := info.loopProvider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClientClient)
+	resp, err := info.provider.RequestReverseSubmarineSwap(loopdCtx, swapRequest, info.swapClient)
 	if err != nil {
 		log.WithField("span", span).Errorf("error requesting reverse swap: %v on node: %v", err, info.nodeInfo.GetIdentityPubkey())
 		if strings.Contains(err.Error(), "channel balance too low for loop out amount") {
@@ -684,7 +754,7 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 	log.WithField("span", span).Infof("reverse swap requested for channel %v, swap id: %v on node %v", channel.GetChanId(), resp.SwapId, info.nodeInfo.GetIdentityPubkey())
 
 	//Monitor the swap
-	swapStatus, err := info.loopProvider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClientClient)
+	swapStatus, err := info.provider.MonitorSwap(loopdCtx, resp.SwapId, info.swapClient)
 	if err != nil {
 		return err
 	}

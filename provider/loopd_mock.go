@@ -162,6 +162,66 @@ func (mr *MockSwapClientClientMockRecorder) GetLsatTokens(ctx, in any, opts ...a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLsatTokens", reflect.TypeOf((*MockSwapClientClient)(nil).GetLsatTokens), varargs...)
 }
 
+// InstantOut mocks base method.
+func (m *MockSwapClientClient) InstantOut(ctx context.Context, in *looprpc.InstantOutRequest, opts ...grpc.CallOption) (*looprpc.InstantOutResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "InstantOut", varargs...)
+	ret0, _ := ret[0].(*looprpc.InstantOutResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InstantOut indicates an expected call of InstantOut.
+func (mr *MockSwapClientClientMockRecorder) InstantOut(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantOut", reflect.TypeOf((*MockSwapClientClient)(nil).InstantOut), varargs...)
+}
+
+// InstantOutQuote mocks base method.
+func (m *MockSwapClientClient) InstantOutQuote(ctx context.Context, in *looprpc.InstantOutQuoteRequest, opts ...grpc.CallOption) (*looprpc.InstantOutQuoteResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "InstantOutQuote", varargs...)
+	ret0, _ := ret[0].(*looprpc.InstantOutQuoteResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InstantOutQuote indicates an expected call of InstantOutQuote.
+func (mr *MockSwapClientClientMockRecorder) InstantOutQuote(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantOutQuote", reflect.TypeOf((*MockSwapClientClient)(nil).InstantOutQuote), varargs...)
+}
+
+// ListReservations mocks base method.
+func (m *MockSwapClientClient) ListReservations(ctx context.Context, in *looprpc.ListReservationsRequest, opts ...grpc.CallOption) (*looprpc.ListReservationsResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ListReservations", varargs...)
+	ret0, _ := ret[0].(*looprpc.ListReservationsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListReservations indicates an expected call of ListReservations.
+func (mr *MockSwapClientClientMockRecorder) ListReservations(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReservations", reflect.TypeOf((*MockSwapClientClient)(nil).ListReservations), varargs...)
+}
+
 // ListSwaps mocks base method.
 func (m *MockSwapClientClient) ListSwaps(ctx context.Context, in *looprpc.ListSwapsRequest, opts ...grpc.CallOption) (*looprpc.ListSwapsResponse, error) {
 	m.ctrl.T.Helper()
@@ -596,6 +656,51 @@ func (m *MockSwapClientServer) GetLsatTokens(arg0 context.Context, arg1 *looprpc
 func (mr *MockSwapClientServerMockRecorder) GetLsatTokens(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLsatTokens", reflect.TypeOf((*MockSwapClientServer)(nil).GetLsatTokens), arg0, arg1)
+}
+
+// InstantOut mocks base method.
+func (m *MockSwapClientServer) InstantOut(arg0 context.Context, arg1 *looprpc.InstantOutRequest) (*looprpc.InstantOutResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstantOut", arg0, arg1)
+	ret0, _ := ret[0].(*looprpc.InstantOutResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InstantOut indicates an expected call of InstantOut.
+func (mr *MockSwapClientServerMockRecorder) InstantOut(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantOut", reflect.TypeOf((*MockSwapClientServer)(nil).InstantOut), arg0, arg1)
+}
+
+// InstantOutQuote mocks base method.
+func (m *MockSwapClientServer) InstantOutQuote(arg0 context.Context, arg1 *looprpc.InstantOutQuoteRequest) (*looprpc.InstantOutQuoteResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InstantOutQuote", arg0, arg1)
+	ret0, _ := ret[0].(*looprpc.InstantOutQuoteResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InstantOutQuote indicates an expected call of InstantOutQuote.
+func (mr *MockSwapClientServerMockRecorder) InstantOutQuote(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstantOutQuote", reflect.TypeOf((*MockSwapClientServer)(nil).InstantOutQuote), arg0, arg1)
+}
+
+// ListReservations mocks base method.
+func (m *MockSwapClientServer) ListReservations(arg0 context.Context, arg1 *looprpc.ListReservationsRequest) (*looprpc.ListReservationsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListReservations", arg0, arg1)
+	ret0, _ := ret[0].(*looprpc.ListReservationsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListReservations indicates an expected call of ListReservations.
+func (mr *MockSwapClientServerMockRecorder) ListReservations(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListReservations", reflect.TypeOf((*MockSwapClientServer)(nil).ListReservations), arg0, arg1)
 }
 
 // ListSwaps mocks base method.
