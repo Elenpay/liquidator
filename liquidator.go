@@ -73,6 +73,7 @@ func startLiquidator() {
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
 	lightningClients := make(map[string]lnrpc.LightningClient)
+	nodeCtxs := make(map[string]context.Context)
 
 	for i, lndconnectURI := range lndconnectURIs {
 
@@ -143,6 +144,8 @@ func startLiquidator() {
 			log.Fatalf("failed to get local node info: %v", err)
 		}
 
+		nodeCtxs[nodeInfo.IdentityPubkey] = nodeCtx
+
 		//Store the lightning client in a map so that it can be used later
 		lightningClients[nodeInfo.IdentityPubkey] = lightningClient
 
@@ -167,7 +170,7 @@ func startLiquidator() {
 				lightningClients: lightningClients,
 				nodeguardClient:  nodeguardClient,
 				swapClient:       swapClient,
-				nodeCtx:          nodeCtx,
+				nodeCtxs:         nodeCtxs,
 				provider:         &provider.LoopProvider{},
 			},
 		})
@@ -286,7 +289,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 	//Infinite loop to monitor channels
 	for {
 		//Call ListChannels method of lightning client with metadata headers
-		response, err := info.lightningClients[info.nodeInfo.IdentityPubkey].ListChannels(info.nodeCtx, &lnrpc.ListChannelsRequest{
+		response, err := info.lightningClients[info.nodeInfo.IdentityPubkey].ListChannels(info.nodeCtxs[info.nodeInfo.IdentityPubkey], &lnrpc.ListChannelsRequest{
 			ActiveOnly: false,
 		})
 
@@ -313,7 +316,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 			}
 			if !found {
 				//Remove channel balance metric
-				deleteChannelBalanceMetric(info.nodeHost, channel, info.lightningClients[info.nodeInfo.IdentityPubkey], info.nodeCtx)
+				deleteChannelBalanceMetric(info.nodeHost, channel, info.lightningClients[info.nodeInfo.IdentityPubkey], info.nodeCtxs[info.nodeInfo.IdentityPubkey])
 			}
 		}
 
@@ -334,7 +337,7 @@ func monitorChannels(info MonitorChannelsInfo) {
 			go monitorChannel(MonitorChannelInfo{
 				BaseInfo:         info.BaseInfo,
 				channel:          channel,
-				context:          info.nodeCtx,
+				context:          info.nodeCtxs[info.nodeInfo.IdentityPubkey],
 				liquidationRules: liquidationRules,
 			})
 
@@ -470,7 +473,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				{
 					swapAmount := helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
 
-					err := invoiceRebalance(info, swapAmount, info.lightningClients[rule.NodePubkey], info.lightningClients[rule.RemoteNodePubkey])
+					err := invoiceRebalance(info, swapAmount, rule.NodePubkey, rule.RemoteNodePubkey)
 					if err != nil {
 						return err
 					}
@@ -481,7 +484,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 				{
 					swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
 
-					err := invoiceRebalance(info, swapAmount, info.lightningClients[rule.RemoteNodePubkey], info.lightningClients[rule.NodePubkey])
+					err := invoiceRebalance(info, swapAmount, rule.RemoteNodePubkey, rule.NodePubkey)
 					if err != nil {
 						return err
 					}
@@ -532,7 +535,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 }
 
 // Creates one invoice in payee node and pays it with the payer node
-func invoiceRebalance(info ManageChannelLiquidityInfo, swapAmount int64, payer lnrpc.LightningClient, payee lnrpc.LightningClient) error {
+func invoiceRebalance(info ManageChannelLiquidityInfo, swapAmount int64, payerPubKey string, payeePubKey string) error {
 
 	if swapAmount <= 0 {
 		return errors.New("swap amount is <= 0")
@@ -544,15 +547,17 @@ func invoiceRebalance(info ManageChannelLiquidityInfo, swapAmount int64, payer l
 		Value: swapAmount,
 	}
 
-	invoiceResponse, err := payee.AddInvoice(info.ctx, invoiceRequest)
+	payeeLnClient := info.lightningClients[payeePubKey]
+	payerLnClient := info.lightningClients[payerPubKey]
+
+	invoiceResponse, err := payeeLnClient.AddInvoice(info.nodeCtxs[payeePubKey], invoiceRequest)
 	if err != nil {
 		return err
 	}
 
-	sendResponse, err := payer.SendPaymentSync(info.ctx, &lnrpc.SendRequest{
+	sendResponse, err := payerLnClient.SendPaymentSync(info.nodeCtxs[payerPubKey], &lnrpc.SendRequest{
 		PaymentRequest: invoiceResponse.PaymentRequest,
 	})
-
 	if err != nil {
 		return err
 	}

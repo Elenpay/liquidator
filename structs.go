@@ -10,15 +10,16 @@ import (
 )
 
 type BaseInfo struct {
-	nodeHost        string
-	nodeInfo        lnrpc.GetInfoResponse
-	nodeMacaroon    string
-	loopdMacaroon   string
+	nodeHost         string
+	nodeInfo         lnrpc.GetInfoResponse
+	nodeMacaroon     string
+	loopdMacaroon    string
 	lightningClients map[string]lnrpc.LightningClient
-	nodeguardClient nodeguard.NodeGuardServiceClient
-	swapClient      looprpc.SwapClientClient
-	nodeCtx         context.Context
-	provider        provider.Provider
+	nodeguardClient  nodeguard.NodeGuardServiceClient
+	swapClient       looprpc.SwapClientClient
+	// nodeCtxs is a map of contexts for each node, the context has the macaroon attached
+	nodeCtxs map[string]context.Context
+	provider provider.Provider
 }
 
 type MonitorChannelsInfo struct {
