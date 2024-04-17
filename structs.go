@@ -9,38 +9,33 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
-type MonitorChannelsInfo struct {
+type BaseInfo struct {
 	nodeHost        string
 	nodeInfo        lnrpc.GetInfoResponse
 	nodeMacaroon    string
 	loopdMacaroon   string
-	lightningClient lnrpc.LightningClient
+	lightningClients map[string]lnrpc.LightningClient
 	nodeguardClient nodeguard.NodeGuardServiceClient
 	swapClient      looprpc.SwapClientClient
 	nodeCtx         context.Context
+	provider        provider.Provider
+}
+
+type MonitorChannelsInfo struct {
+	BaseInfo
 }
 
 type MonitorChannelInfo struct {
+	BaseInfo
 	channel          *lnrpc.Channel
-	nodeHost         string
-	lightningClient  lnrpc.LightningClient
 	context          context.Context
 	liquidationRules map[uint64][]nodeguard.LiquidityRule
-	swapClient       looprpc.SwapClientClient
-	nodeguardClient  nodeguard.NodeGuardServiceClient
-	loopProvider     provider.Provider
-	loopdMacaroon    string
-	nodeInfo         lnrpc.GetInfoResponse
 }
 
 type ManageChannelLiquidityInfo struct {
+	BaseInfo
 	channel             *lnrpc.Channel
 	channelBalanceRatio float64
 	channelRules        *[]nodeguard.LiquidityRule
-	swapClientClient    looprpc.SwapClientClient
-	nodeguardClient     nodeguard.NodeGuardServiceClient
-	loopProvider        provider.Provider
-	loopdMacaroon       string
-	nodeInfo            lnrpc.GetInfoResponse
 	ctx                 context.Context
 }

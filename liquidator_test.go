@@ -131,8 +131,14 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		},
 	}
 
+	//Mock for lightning clients for invoice rebalance
+	lightningClient := NewMockLightningClient(mockCtrl)
+	lightningClient.EXPECT().AddInvoice(gomock.Any(), gomock.Any()).Return(&lnrpc.AddInvoiceResponse{}, nil).AnyTimes()
+	lightningClient.EXPECT().SendPaymentSync(gomock.Any(), gomock.Any()).Return(&lnrpc.SendResponse{}, nil).AnyTimes()
+
 	nodeInfo := lnrpc.GetInfoResponse{
-		Alias: "Test",
+		Alias:          "Test",
+		IdentityPubkey: "1",
 	}
 
 	tests := []struct {
@@ -144,13 +150,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test valid reverse swap",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProvider,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProvider,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: false,
@@ -158,13 +171,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test valid reverse swap",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProvider,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: false, ReverseSwapAddress: &address, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProvider,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: false,
@@ -172,27 +192,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test valid reverse swap bypassing max pending amt",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProvider,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProvider,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
-				ctx:                 context.TODO(),
-			},
-			wantErr: false,
-		},
-		{
-			name: "Manage channel liquidity test valid reverse swap bypassing max pending amt",
-			args: ManageChannelLiquidityInfo{
-				channel:             channelActive,
-				channelBalanceRatio: 0.1,
-				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 40}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProvider,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: false,
@@ -200,8 +213,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test valid swap",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          context.TODO(),
+					provider:         mockProvider,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.9,
+				ctx:                 context.TODO(),
 				channelRules: &[]nodeguard.LiquidityRule{
 					{
 						ChannelId:            123,
@@ -212,24 +237,26 @@ func Test_manageChannelLiquidity(t *testing.T) {
 						RebalanceTarget:      60,
 					},
 				},
-				nodeguardClient: mockNodeGuardClient,
-				loopProvider:    mockProvider,
-				loopdMacaroon:   "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:        nodeInfo,
-				ctx:             context.TODO(),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Manage channel liquidity test failed reverse swap",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProviderInvalid,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProviderInvalid,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: true,
@@ -237,13 +264,20 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test failed swap",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProviderInvalid,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.9,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", SwapWalletId: 1, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProviderInvalid,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: true,
@@ -251,16 +285,69 @@ func Test_manageChannelLiquidity(t *testing.T) {
 		{
 			name: "Manage channel liquidity test failed reverse swap channel outbound capacity",
 			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeHost:         "",
+					nodeInfo:         nodeInfo,
+					nodeMacaroon:     "",
+					loopdMacaroon:    "1",
+					lightningClients: map[string]lnrpc.LightningClient{},
+					nodeguardClient:  mockNodeGuardClient,
+					swapClient:       nil,
+					nodeCtx:          nil,
+					provider:         mockProviderInvalidLoopError,
+				},
 				channel:             channelActive,
 				channelBalanceRatio: 0.1,
 				channelRules:        &[]nodeguard.LiquidityRule{{ChannelId: 123, NodePubkey: "", IsReverseSwapWalletRule: true, ReverseSwapWalletId: &walletId, MinimumLocalBalance: 20, MinimumRemoteBalance: 80, RebalanceTarget: 60}},
-				nodeguardClient:     mockNodeGuardClient,
-				loopProvider:        mockProviderInvalidLoopError,
-				loopdMacaroon:       "0201036c6e6402f801030a10dc64226b045d25f090b114baebcbf04c1201301a160a0761646472657373120472656164120577726974651a130a04696e666f120472656164120577726974651a170a08696e766f69636573120472656164120577726974651a210a086d616361726f6f6e120867656e6572617465120472656164120577726974651a160a076d657373616765120472656164120577726974651a170a086f6666636861696e120472656164120577726974651a160a076f6e636861696e120472656164120577726974651a140a057065657273120472656164120577726974651a180a067369676e6572120867656e657261746512047265616400000620a21b8cc8c071aa5104b706b751aede972f642537c05da31450fb4b02c6da776e",
-				nodeInfo:            nodeInfo,
 				ctx:                 context.TODO(),
 			},
 			wantErr: true,
+		},
+		{
+			name: "Manage channel liquidity test valid invoice rebalance minimum local balance threshold",
+			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeInfo:         nodeInfo,
+					lightningClients: map[string]lnrpc.LightningClient{"1": lightningClient, "2": lightningClient},
+					nodeCtx:          context.Background(),
+					nodeMacaroon:     "1",
+					loopdMacaroon:    "2",
+				},
+				channel:             channelActive,
+				channelBalanceRatio: 0.1,
+				channelRules: &[]nodeguard.LiquidityRule{{
+					NodePubkey:           "1",
+					MinimumLocalBalance:  20,
+					MinimumRemoteBalance: 80,
+					RebalanceTarget:      50,
+					RemoteNodePubkey:     "2",
+				}},
+				ctx: context.TODO(),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Manage channel liquidity test valid invoice rebalance remote local balance threshold",
+			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeInfo:         nodeInfo,
+					lightningClients: map[string]lnrpc.LightningClient{"1": lightningClient, "2": lightningClient},
+					nodeCtx:          context.Background(),
+					nodeMacaroon:     "1",
+					loopdMacaroon:    "2",
+				},
+				channel:             channelActive,
+				channelBalanceRatio: 0.9,
+				channelRules: &[]nodeguard.LiquidityRule{{
+					NodePubkey:           "1",
+					MinimumLocalBalance:  20,
+					MinimumRemoteBalance: 80,
+					RebalanceTarget:      50,
+					RemoteNodePubkey:     "2",
+				}},
+				ctx: context.TODO(),
+			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -452,6 +539,8 @@ func Test_monitorChannel(t *testing.T) {
 		},
 	}, nil).AnyTimes()
 
+	nodeInfo := lnrpc.GetInfoResponse{IdentityPubkey: "1"}
+
 	tests := []struct {
 		name string
 		args args
@@ -460,16 +549,16 @@ func Test_monitorChannel(t *testing.T) {
 			name: "Monitor channel goroutine leak test invalid swap",
 			args: args{
 				info: MonitorChannelInfo{
+					BaseInfo: BaseInfo{
+						nodeHost:         "",
+						lightningClients: map[string]lnrpc.LightningClient{"1": mockLightningClient},
+						swapClient:       provider.NewMockSwapClientClient(mockCtrl),
+						nodeguardClient:  nodeguardClient, nodeCtx: context.TODO(),
+						provider: createMockProviderInvalidSwap(mockCtrl),
+						nodeInfo: nodeInfo},
 					channel:          channel,
-					nodeHost:         "",
-					lightningClient:  mockLightningClient,
 					context:          context.TODO(),
 					liquidationRules: liquidityRules,
-					swapClient:       provider.NewMockSwapClientClient(mockCtrl),
-					nodeguardClient:  nodeguardClient,
-					loopProvider:     createMockProviderInvalidSwap(mockCtrl),
-					loopdMacaroon:    "123",
-					nodeInfo:         lnrpc.GetInfoResponse{},
 				},
 				iterations: 4,
 			},
@@ -478,16 +567,16 @@ func Test_monitorChannel(t *testing.T) {
 			name: "Monitor channel with ongoing htlc",
 			args: args{
 				info: MonitorChannelInfo{
+					BaseInfo: BaseInfo{
+						nodeHost:         "",
+						lightningClients: map[string]lnrpc.LightningClient{"1": mockLightningClientWithHTLCs},
+						swapClient:       provider.NewMockSwapClientClient(mockCtrl),
+						nodeguardClient:  nodeguardClient, nodeCtx: context.TODO(),
+						provider: &provider.LoopProvider{},
+						nodeInfo: nodeInfo},
 					channel:          channelHtlcs,
-					nodeHost:         "",
-					lightningClient:  mockLightningClientWithHTLCs,
 					context:          context.TODO(),
 					liquidationRules: map[uint64][]nodeguard.LiquidityRule{},
-					swapClient:       provider.NewMockSwapClientClient(mockCtrl),
-					nodeguardClient:  nodeguardClient,
-					loopProvider:     &provider.LoopProvider{},
-					loopdMacaroon:    "",
-					nodeInfo:         lnrpc.GetInfoResponse{},
 				},
 				iterations: 4,
 			},
