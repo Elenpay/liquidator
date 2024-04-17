@@ -457,7 +457,7 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 	switch {
 	//Both nodes are managed, then simply create 1 invoice and send it to the other node to pay it
-	case info.lightningClients[rule.NodePubkey] != nil && info.lightningClients[rule.RemoteNodePubkey] != nil:
+	case info.lightningClients[rule.NodePubkey] != nil && info.lightningClients[rule.RemoteNodePubkey] != nil && rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 		{
 			//Add attribute to the span of swap requested
 			span.SetAttributes(attribute.String("swapRequestedType", "invoiceRebalance"))
@@ -467,31 +467,32 @@ func manageChannelLiquidity(info ManageChannelLiquidityInfo) error {
 
 			log.WithField("span", span).Infof("rebalancing via invoice on channel %v on node %v", channel.GetChanId(), info.nodeInfo.GetAlias())
 
-			switch {
 			//Create an invoice for the swap amount from the remote node and pay with the rule's node
-			case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
-				{
-					swapAmount := helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
 
-					err := invoiceRebalance(info, swapAmount, rule.NodePubkey, rule.RemoteNodePubkey)
-					if err != nil {
-						return err
-					}
+			swapAmount := helper.AbsInt64((swapAmountTarget - channel.LocalBalance))
 
-				}
-			//Create an invoice for the swap amount from the rule's node and pay with the remote node
-			case rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
-				{
-					swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
-
-					err := invoiceRebalance(info, swapAmount, rule.RemoteNodePubkey, rule.NodePubkey)
-					if err != nil {
-						return err
-					}
-				}
-
+			err := invoiceRebalance(info, swapAmount, rule.NodePubkey, rule.RemoteNodePubkey)
+			if err != nil {
+				return err
 			}
 
+		}
+	case info.lightningClients[rule.NodePubkey] != nil && info.lightningClients[rule.RemoteNodePubkey] != nil && rule.MinimumRemoteBalance != 0 && info.channelBalanceRatio > float64(rule.MinimumRemoteBalance):
+		{
+			//Add attribute to the span of swap requested
+			span.SetAttributes(attribute.String("swapRequestedType", "invoiceRebalance"))
+			span.SetAttributes(attribute.String("chanId", fmt.Sprintf("%v", channel.GetChanId())))
+			span.SetAttributes(attribute.String("nodePubkey", info.nodeInfo.GetIdentityPubkey()))
+			span.SetAttributes(attribute.String("nodeAlias", info.nodeInfo.GetAlias()))
+
+			log.WithField("span", span).Infof("rebalancing via invoice on channel %v on node %v", channel.GetChanId(), info.nodeInfo.GetAlias())
+			swapAmount := helper.AbsInt64((channel.RemoteBalance - swapAmountTarget))
+
+			//Create an invoice for the swap amount from the rule's node and pay with the remote node
+			err := invoiceRebalance(info, swapAmount, rule.RemoteNodePubkey, rule.NodePubkey)
+			if err != nil {
+				return err
+			}
 		}
 	case rule.MinimumLocalBalance != 0 && info.channelBalanceRatio < float64(rule.MinimumLocalBalance):
 		{
