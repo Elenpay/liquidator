@@ -14,16 +14,13 @@ run *args='': build
 install-loopd-loop:
     cd loop/cmd/loop && go install .
     cd loop/cmd/loopd && go install .
-compile-lnrpc-proto:
-    rm -rf ./github.com/lightningnetwork/lnd && protoc -I lnd/lnrpc --go_out=. --go-grpc_out=.  lnd/lnrpc/*.proto && cd ./github.com/lightningnetwork/lnd/lnrpc && go mod init lnrpc
+
 compile-nodeguard-proto:
     rm -rf nodeguard && protoc -I rpc --go_out=. --go-grpc_out=.  rpc/*.proto && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard
 compile-lnd-client-mock:
     mockgen -destination lightning_rpc_mock.go -source lnd/lnrpc/lightning_grpc.pb.go  -package main
 compile-provider-mock:
-    mockgen -destination ./provider/provider_mock.go -source provider/provider.go  -package provider && mockgen -destination ./provider/loopd_mock.go -source loop/looprpc/client_grpc.pb.go  -package provider
-compile-loop-proto:
-    rm -rf ./github.com/lightninglabs/loop && cd loop && protoc -I. -I looprpc -I swapserverrpc --go_out=.. --go-grpc_out=..  looprpc/*.proto  && cd ../github.com/lightninglabs/loop/looprpc && go mod init looprpc    
+    mockgen -destination ./provider/provider_mock.go -source provider/provider.go  -package provider && mockgen -destination ./provider/loopd_mock.go -source loop/looprpc/client_grpc.pb.go  -package provider 
 cover-test:
     go test ./... -coverprofile=coverage.out; go tool cover -html=coverage.out
 start-loopserver: build-loopserver
