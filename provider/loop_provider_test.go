@@ -12,12 +12,22 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+func TestMain(m *testing.M) {
+
+	setLimitFees()
+
+	m.Run()
+}
+
+func setLimitFees() {
+	viper.Set("limitQuoteFees", "0.005")
+	viper.Set("limitFeesL2", "0.002")
+}
+
 func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-
-	viper.Set("LIMITFEES", "0.007")
 
 	//Mock lightning swapClient GetLoopInQuote and LoopIn methods to return fake data
 	swapClient := NewMockSwapClientClient(ctrl)

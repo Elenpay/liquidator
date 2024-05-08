@@ -113,9 +113,13 @@ func init() {
 	rootCmd.Flags().Float64("backoffLimit", 0.1, "Limit coefficient of the backoff")
 	viper.BindPFlag("backoffLimit", rootCmd.Flags().Lookup("backoffLimit"))
 
-	// Limit fees for swaps
-	rootCmd.Flags().Float64("limitFees", 0.007, "Limit fees for swaps e.g. 0.01 = 1%")
-	viper.BindPFlag("limitFees", rootCmd.Flags().Lookup("limitFees"))
+	// Limit fees for swaps quotes
+	rootCmd.Flags().Float64("limitQuoteFees", 0.005, "Limit fee ratio for swaps quotes (e.g. onchain+service fee estimation) e.g. 0.01 = 1%")
+	viper.BindPFlag("limitQuoteFees", rootCmd.Flags().Lookup("limitQuoteFees"))
+
+	// Limit fees for swaps L2
+	rootCmd.Flags().Float64("limitFeesL2", 0.002, "Limit fee ratio for swaps max routing fee e.g. 0.01 = 1%")
+	viper.BindPFlag("limitFeesL2", rootCmd.Flags().Lookup("limitFeesL2"))
 
 	//Sweep conf
 	rootCmd.Flags().String("sweepConfTarget", "400", "Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution")
@@ -131,7 +135,6 @@ func init() {
 	retries = viper.GetInt("retriesBeforeBackoff")
 	backoffCoefficient = viper.GetFloat64("backoffCoefficient")
 	backoffLimit = viper.GetFloat64("backoffLimit")
-	limitFees = viper.GetFloat64("limitFees")
 
 	//Set log level and format
 
