@@ -14,7 +14,8 @@ Flags:
       --backoffCoefficient float       Coefficient to apply to the backoff (default 0.95)
       --backoffLimit float             Limit coefficient of the backoff (default 0.1)
   -h, --help                           help for liquidator
-      --limitFees float                Limit fees for swaps e.g. 0.01 = 1% (default 0.007)
+      --limitFeesL2 float              Limit fee ratio for swaps max routing fee e.g. 0.01 = 1% (default 0.002)
+      --limitQuoteFees float           Limit fee ratio for swaps quotes (e.g. onchain+service fee estimation) e.g. 0.01 = 1% (default 0.005)
       --lndconnecturis string          CSV of lndconnect strings to connect to lnd(s)
       --logFormat string               Log format from: {text, json} (default "text")
       --logLevel string                Log level from values: {trace, debug, info, warn, error, fatal, panic} (default "info")
@@ -55,7 +56,8 @@ Available recipes:
 All the flags can be set as environment variables, with the following format, except stated, they are all mandatory:
 
 - LNDCONNECTURIS : CSV of lndconnect strings to connect to lnd(s)\
-- LIMITFEES (optional) : Limit to total Swap Fees (default 0.007 -> 0.7% Swap size)
+- LIMITQUOTEFEES (optional) : Limit to total Max Quote Fees (L1+service fee) (default 0.007 -> 0.7% of the Swap size)
+- LIMITFEESL2 (optional) : Limit to total Max Routing Fees (L2) (default 0.002 -> 0.2% of the Swap size)
 - LOOPDCONNECTURIS : CSV of loopdconnect strings to connect to loopd(s)
 - POLLINGINTERVAL (optional) : Interval to poll data(default 15s)
 - LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}
