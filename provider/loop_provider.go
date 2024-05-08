@@ -61,7 +61,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		return SubmarineSwapResponse{}, err
 	}
 
-	limitFeesStr := viper.GetString("LIMITFEES")
+	limitFeesStr := viper.GetString("limitQuoteFees")
 	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
 	if err != nil {
 		return SubmarineSwapResponse{}, err
@@ -228,8 +228,8 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 
 	//Do a quote for loop out
 	quote, err := client.LoopOutQuote(ctx, &looprpc.QuoteRequest{
-		Amt: request.SatsAmount,
-		//ConfTarget:   1, //TODO Make this configurable
+		Amt:          request.SatsAmount,
+		ConfTarget:   viper.GetInt32("sweepConfTarget"),
 		ExternalHtlc: true,
 		Private:      false,
 	})
@@ -239,20 +239,23 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		return ReverseSubmarineSwapResponse{}, err
 	}
 
-	limitFeesStr := viper.GetString("LIMITFEES")
-	limitFees, err := strconv.ParseFloat(limitFeesStr, 64)
-	if err != nil {
-		return ReverseSubmarineSwapResponse{}, err
-	}
+	limitQuoteFees := viper.GetFloat64("limitQuoteFees")
 
+	//This fees are onchain + service fees, NOT L2 fees as they are not in the quote
 	sumFees := quote.SwapFeeSat + quote.HtlcSweepFeeSat + quote.PrepayAmtSat
-	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitFees)
+	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitQuoteFees)
 
 	if sumFees > maximumFeesAllowed {
-		err := fmt.Errorf("swap fees are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
+		err := fmt.Errorf("swap quote fees (L1+Service estimation fees) are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
 		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
+
+	//Max swap routing fee (L2 fees) is a percentage of the swap amount
+	l2MaxRoutingFeeRatio := viper.GetFloat64("limitFeesL2")
+	maxSwapRoutingFee := int64(float64(request.SatsAmount) * l2MaxRoutingFeeRatio)
+
+	log.Infof("max L2 routing fees for the swap: %d", maxSwapRoutingFee)
 
 	//Get limits
 	//Amt using btcutil
@@ -270,13 +273,13 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxPrepayAmt:        int64(limits.maxPrepayAmt),
 		MaxSwapFee:          int64(limits.maxSwapFee),
 		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
-		MaxSwapRoutingFee:   int64(limits.maxSwapRoutingFee),
+		MaxSwapRoutingFee:   maxSwapRoutingFee,
 		OutgoingChanSet:     request.ChannelSet,
 		SweepConfTarget:     viper.GetInt32("sweepConfTarget"),
 		HtlcConfirmations:   3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
-		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
+		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s for channels: %v", request.SatsAmount, time.Now().Format(time.RFC3339), request.ChannelSet),
 		Initiator:               "Liquidator",
 	})
 

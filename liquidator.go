@@ -36,7 +36,6 @@ var (
 	retries            int
 	backoffCoefficient float64
 	backoffLimit       float64
-	limitFees          float64
 )
 
 // Entrypoint of liquidator main logic
