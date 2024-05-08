@@ -255,6 +255,8 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	l2MaxRoutingFeeRatio := viper.GetFloat64("limitFeesL2")
 	maxSwapRoutingFee := int64(float64(request.SatsAmount) * l2MaxRoutingFeeRatio)
 
+	log.Infof("max L2 routing fees for the swap: %d", maxSwapRoutingFee)
+
 	//Get limits
 	//Amt using btcutil
 	amt := btcutil.Amount(request.SatsAmount)
