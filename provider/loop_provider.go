@@ -246,9 +246,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 	maximumFeesAllowed := int64(float64(request.SatsAmount) * limitQuoteFees)
 
 	if sumFees > maximumFeesAllowed {
-		err := fmt.Errorf("swap quote fees (L1+Service estimation fees) are greater than max limit fees, quote fees: %d, maximum fees allowed: %d", sumFees, maximumFeesAllowed)
-		log.Error(err)
-		return ReverseSubmarineSwapResponse{}, err
+		log.Warnf("swap quote fees (L1+Service estimation fees) are greater than max limit fees, quote fees: %d, maximum fees theoretically allowed: %d", sumFees, maximumFeesAllowed)
 	}
 
 	//Max swap routing fee (L2 fees) is a percentage of the swap amount
