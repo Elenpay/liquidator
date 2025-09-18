@@ -1,6 +1,6 @@
 module github.com/Elenpay/liquidator
 
-go 1.24
+go 1.25
 
 replace google.golang.org/protobuf => github.com/lightninglabs/protobuf-go-hex-display v1.30.0-hex-display
 

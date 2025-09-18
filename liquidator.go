@@ -1,3 +1,5 @@
+//go:generate mockgen -destination ./nodeguard/nodeguard_mock.go -package nodeguard github.com/Elenpay/liquidator/nodeguard NodeGuardServiceClient
+
 package main
 
 import (
