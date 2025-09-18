@@ -42,10 +42,10 @@ func (m *MockProvider) EXPECT() *MockProviderMockRecorder {
 }
 
 // GetSwapStatus mocks base method.
-func (m *MockProvider) GetSwapStatus(arg0 context.Context, arg1 string, arg2 looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
+func (m *MockProvider) GetSwapStatus(arg0 context.Context, arg1 string, arg2 looprpc.SwapClientClient) (*looprpc.SwapStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSwapStatus", arg0, arg1, arg2)
-	ret0, _ := ret[0].(looprpc.SwapStatus)
+	ret0, _ := ret[0].(*looprpc.SwapStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -57,10 +57,10 @@ func (mr *MockProviderMockRecorder) GetSwapStatus(arg0, arg1, arg2 any) *gomock.
 }
 
 // MonitorSwap mocks base method.
-func (m *MockProvider) MonitorSwap(arg0 context.Context, arg1 string, arg2 looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
+func (m *MockProvider) MonitorSwap(arg0 context.Context, arg1 string, arg2 looprpc.SwapClientClient) (*looprpc.SwapStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "MonitorSwap", arg0, arg1, arg2)
-	ret0, _ := ret[0].(looprpc.SwapStatus)
+	ret0, _ := ret[0].(*looprpc.SwapStatus)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
