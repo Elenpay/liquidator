@@ -1,3 +1,6 @@
+//go:generate mockgen -destination ./provider_mock.go -package provider -source provider.go
+//go:generate mockgen -destination ./loopd_mock.go -package provider github.com/lightninglabs/loop/looprpc SwapClientClient
+
 package provider
 
 import (
