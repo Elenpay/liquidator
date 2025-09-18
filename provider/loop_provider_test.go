@@ -661,8 +661,10 @@ func TestLoopProvider_PerChannelLocking(t *testing.T) {
 		l := &LoopProvider{}
 		channel1 := uint64(12345)
 		channel2 := uint64(67890)
+		channel3 := uint64(11111)
+		channel4 := uint64(22222)
 
-		// Both channels should be able to acquire submarine swap locks
+		// Different channels should be able to acquire submarine swap locks
 		err1 := l.acquireSubmarineSwapLock(channel1)
 		if err1 != nil {
 			t.Errorf("Expected no error for channel1 submarine swap lock, got: %v", err1)
@@ -673,21 +675,21 @@ func TestLoopProvider_PerChannelLocking(t *testing.T) {
 			t.Errorf("Expected no error for channel2 submarine swap lock, got: %v", err2)
 		}
 
-		// Both channels should be able to acquire reverse swap locks
-		err3 := l.acquireReverseSwapLock(channel1)
+		// Different channels should be able to acquire reverse swap locks
+		err3 := l.acquireReverseSwapLock(channel3)
 		if err3 != nil {
-			t.Errorf("Expected no error for channel1 reverse swap lock, got: %v", err3)
+			t.Errorf("Expected no error for channel3 reverse swap lock, got: %v", err3)
 		}
 
-		err4 := l.acquireReverseSwapLock(channel2)
+		err4 := l.acquireReverseSwapLock(channel4)
 		if err4 != nil {
-			t.Errorf("Expected no error for channel2 reverse swap lock, got: %v", err4)
+			t.Errorf("Expected no error for channel4 reverse swap lock, got: %v", err4)
 		}
 	})
 
 	t.Run("SameChannelCannotHaveDuplicateSubmarineSwaps", func(t *testing.T) {
 		l := &LoopProvider{}
-		channelId := uint64(11111)
+		channelId := uint64(99999)
 
 		// First submarine swap should succeed
 		err1 := l.acquireSubmarineSwapLock(channelId)
@@ -709,7 +711,7 @@ func TestLoopProvider_PerChannelLocking(t *testing.T) {
 
 	t.Run("SameChannelCannotHaveDuplicateReverseSwaps", func(t *testing.T) {
 		l := &LoopProvider{}
-		channelId := uint64(22222)
+		channelId := uint64(88888)
 
 		// First reverse swap should succeed
 		err1 := l.acquireReverseSwapLock(channelId)
@@ -729,32 +731,47 @@ func TestLoopProvider_PerChannelLocking(t *testing.T) {
 		}
 	})
 
-	t.Run("SameChannelCanHaveBothSubmarineAndReverseSwaps", func(t *testing.T) {
+	t.Run("SameChannelCannotHaveBothSubmarineAndReverseSwaps", func(t *testing.T) {
 		l := &LoopProvider{}
-		channelId := uint64(33333)
+		channelId := uint64(77777)
 
-		// Submarine swap should succeed
+		// First submarine swap should succeed
 		err1 := l.acquireSubmarineSwapLock(channelId)
 		if err1 != nil {
 			t.Errorf("Expected no error for submarine swap lock, got: %v", err1)
 		}
 
-		// Reverse swap on same channel should also succeed (different lock types)
+		// Reverse swap on same channel should fail
 		err2 := l.acquireReverseSwapLock(channelId)
-		if err2 != nil {
-			t.Errorf("Expected no error for reverse swap lock on same channel, got: %v", err2)
+		if err2 == nil {
+			t.Error("Expected error for reverse swap lock on same channel as submarine swap")
 		}
 
-		// But duplicate submarine swap should fail
-		err3 := l.acquireSubmarineSwapLock(channelId)
-		if err3 == nil {
-			t.Error("Expected error for duplicate submarine swap lock")
+		// Error should mention conflicting swap
+		if !contains(err2.Error(), "submarine swap") {
+			t.Errorf("Expected error message to mention submarine swap conflict, got: %s", err2.Error())
+		}
+	})
+
+	t.Run("ReverseSwapBlocksSubmarineSwap", func(t *testing.T) {
+		l := &LoopProvider{}
+		channelId := uint64(66666)
+
+		// First reverse swap should succeed
+		err1 := l.acquireReverseSwapLock(channelId)
+		if err1 != nil {
+			t.Errorf("Expected no error for reverse swap lock, got: %v", err1)
 		}
 
-		// And duplicate reverse swap should fail
-		err4 := l.acquireReverseSwapLock(channelId)
-		if err4 == nil {
-			t.Error("Expected error for duplicate reverse swap lock")
+		// Submarine swap on same channel should fail
+		err2 := l.acquireSubmarineSwapLock(channelId)
+		if err2 == nil {
+			t.Error("Expected error for submarine swap lock on same channel as reverse swap")
+		}
+
+		// Error should mention conflicting swap
+		if !contains(err2.Error(), "reverse submarine swap") {
+			t.Errorf("Expected error message to mention reverse submarine swap conflict, got: %s", err2.Error())
 		}
 	})
 
@@ -765,7 +782,7 @@ func TestLoopProvider_PerChannelLocking(t *testing.T) {
 		defer viper.Set("swapLockTimeout", originalTimeout)
 
 		l := &LoopProvider{}
-		channelId := uint64(44444)
+		channelId := uint64(55555)
 
 		// Acquire lock
 		err1 := l.acquireSubmarineSwapLock(channelId)

@@ -36,10 +36,26 @@ func (l *LoopProvider) acquireSubmarineSwapLock(channelId uint64) error {
 	if l.submarineSwapLocks == nil {
 		l.submarineSwapLocks = make(map[uint64]*time.Time)
 	}
+	if l.reverseSwapLocks == nil {
+		l.reverseSwapLocks = make(map[uint64]*time.Time)
+	}
 
-	// Check if there's an active lock for this channel and if it has expired
+	swapLockTimeout := viper.GetDuration("swapLockTimeout")
+
+	// Check if there's an active reverse swap lock for this channel (cannot have both types)
+	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("reverse submarine swap is in progress for channel %d, cannot start submarine swap, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Check if there's an active submarine swap lock for this channel and if it has expired
 	if lockTime, exists := l.submarineSwapLocks[channelId]; exists && lockTime != nil {
-		swapLockTimeout := viper.GetDuration("swapLockTimeout")
 		if time.Since(*lockTime) < swapLockTimeout {
 			return &customerrors.SwapInProgressError{
 				Message: fmt.Sprintf("submarine swap is locked for channel %d, started at %s, will expire at %s",
@@ -66,10 +82,25 @@ func (l *LoopProvider) acquireReverseSwapLock(channelId uint64) error {
 	if l.reverseSwapLocks == nil {
 		l.reverseSwapLocks = make(map[uint64]*time.Time)
 	}
+	if l.submarineSwapLocks == nil {
+		l.submarineSwapLocks = make(map[uint64]*time.Time)
+	}
 
 	swapLockTimeout := viper.GetDuration("swapLockTimeout")
 
-	// Check if there's an active lock for this channel and if it has expired
+	// Check if there's an active submarine swap lock for this channel (cannot have both types)
+	if lockTime, exists := l.submarineSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("submarine swap is in progress for channel %d, cannot start reverse swap, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Check if there's an active reverse swap lock for this channel and if it has expired
 	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
 		if time.Since(*lockTime) < swapLockTimeout {
 			return &customerrors.SwapInProgressError{
