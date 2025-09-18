@@ -362,7 +362,7 @@ func createMockProviderValidSwap(mockCtrl *gomock.Controller) *provider.MockProv
 		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
 
-	mockProvider.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
+	mockProvider.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(&looprpc.SwapStatus{
 		Amt:              0,
 		Id:               "",
 		IdBytes:          []byte{},
@@ -396,7 +396,7 @@ func createMockProviderInvalidSwap(mockCtrl *gomock.Controller) *provider.MockPr
 		InvoiceBTCAddress: "bcrt1q6zszlnxhlq0lsmfc42nkwgqedy9kvmvmxhkvme",
 	}, nil).AnyTimes()
 
-	mockProviderInvalid.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(looprpc.SwapStatus{
+	mockProviderInvalid.EXPECT().MonitorSwap(gomock.Any(), gomock.Any(), gomock.Any()).Return(&looprpc.SwapStatus{
 		Amt:           0,
 		Id:            "",
 		IdBytes:       []byte{},

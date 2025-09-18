@@ -17,72 +17,122 @@ import (
 )
 
 type LoopProvider struct {
-	// Timestamp of when submarine swap lock was acquired
-	submarineSwapLockTime *time.Time
+	// Maps channel ID to timestamp of when submarine swap lock was acquired for that channel
+	submarineSwapLocks map[uint64]*time.Time
 
-	// Timestamp of when reverse submarine swap lock was acquired
-	reverseSwapLockTime *time.Time
+	// Maps channel ID to timestamp of when reverse submarine swap lock was acquired for that channel
+	reverseSwapLocks map[uint64]*time.Time
 
 	// General mutex for managing lock state
 	stateMutex sync.RWMutex
 }
 
-// acquireSubmarineSwapLock tries to acquire the submarine swap lock
-func (l *LoopProvider) acquireSubmarineSwapLock() error {
+// acquireSubmarineSwapLock tries to acquire the submarine swap lock for a specific channel
+func (l *LoopProvider) acquireSubmarineSwapLock(channelId uint64) error {
 	l.stateMutex.Lock()
 	defer l.stateMutex.Unlock()
 
-	// Check if there's an active lock and if it has expired
-	if l.submarineSwapLockTime != nil {
-		swapLockTimeout := viper.GetDuration("swapLockTimeout")
-		if time.Since(*l.submarineSwapLockTime) < swapLockTimeout {
+	// Initialize the maps if they don't exist
+	if l.submarineSwapLocks == nil {
+		l.submarineSwapLocks = make(map[uint64]*time.Time)
+	}
+	if l.reverseSwapLocks == nil {
+		l.reverseSwapLocks = make(map[uint64]*time.Time)
+	}
+
+	swapLockTimeout := viper.GetDuration("swapLockTimeout")
+
+	// Check if there's an active reverse swap lock for this channel (cannot have both types)
+	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
 			return &customerrors.SwapInProgressError{
-				Message: fmt.Sprintf("submarine swap is locked, started at %s, will expire at %s",
-					l.submarineSwapLockTime.Format(time.RFC3339),
-					l.submarineSwapLockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+				Message: fmt.Sprintf("reverse submarine swap is in progress for channel %d, cannot start submarine swap, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
 			}
 		}
 	}
 
-	// Acquire the lock
-	now := time.Now()
-	l.submarineSwapLockTime = &now
-	log.Infof("Acquired submarine swap lock at %s", now.Format(time.RFC3339))
-	return nil
-}
-
-// acquireReverseSwapLock tries to acquire the reverse swap lock
-func (l *LoopProvider) acquireReverseSwapLock() error {
-	l.stateMutex.Lock()
-	defer l.stateMutex.Unlock()
-
-	// Check if there's an active lock and if it has expired
-	if l.reverseSwapLockTime != nil {
-		swapLockTimeout := viper.GetDuration("swapLockTimeout")
-		if time.Since(*l.reverseSwapLockTime) < swapLockTimeout {
+	// Check if there's an active submarine swap lock for this channel and if it has expired
+	if lockTime, exists := l.submarineSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
 			return &customerrors.SwapInProgressError{
-				Message: fmt.Sprintf("reverse submarine swap is locked, started at %s, will expire at %s",
-					l.reverseSwapLockTime.Format(time.RFC3339),
-					l.reverseSwapLockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+				Message: fmt.Sprintf("submarine swap is locked for channel %d, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
 			}
 		}
 	}
 
-	// Acquire the lock
+	// Acquire the lock for this channel
 	now := time.Now()
-	l.reverseSwapLockTime = &now
-	log.Infof("Acquired reverse swap lock at %s", now.Format(time.RFC3339))
+	l.submarineSwapLocks[channelId] = &now
+	log.Infof("Acquired submarine swap lock for channel %d at %s", channelId, now.Format(time.RFC3339))
 	return nil
 }
 
-// releaseReverseSwapLock releases the reverse swap lock
-func (l *LoopProvider) releaseReverseSwapLock() {
+// acquireReverseSwapLock tries to acquire the reverse swap lock for a specific channel
+func (l *LoopProvider) acquireReverseSwapLock(channelId uint64) error {
 	l.stateMutex.Lock()
 	defer l.stateMutex.Unlock()
 
-	if l.reverseSwapLockTime != nil {
-		log.Infof("Released reverse swap lock that was acquired at %s", l.reverseSwapLockTime.Format(time.RFC3339))
-		l.reverseSwapLockTime = nil
+	// Initialize the maps if they don't exist
+	if l.reverseSwapLocks == nil {
+		l.reverseSwapLocks = make(map[uint64]*time.Time)
+	}
+	if l.submarineSwapLocks == nil {
+		l.submarineSwapLocks = make(map[uint64]*time.Time)
+	}
+
+	swapLockTimeout := viper.GetDuration("swapLockTimeout")
+
+	// Check if there's an active submarine swap lock for this channel (cannot have both types)
+	if lockTime, exists := l.submarineSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("submarine swap is in progress for channel %d, cannot start reverse swap, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Check if there's an active reverse swap lock for this channel and if it has expired
+	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
+		if time.Since(*lockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("reverse submarine swap is locked for channel %d, started at %s, will expire at %s",
+					channelId,
+					lockTime.Format(time.RFC3339),
+					lockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Acquire the lock for this channel
+	now := time.Now()
+	l.reverseSwapLocks[channelId] = &now
+	log.Infof("Acquired reverse swap lock for channel %d at %s", channelId, now.Format(time.RFC3339))
+	return nil
+}
+
+// releaseReverseSwapLock releases the reverse swap lock for a specific channel
+func (l *LoopProvider) releaseReverseSwapLock(channelId uint64) {
+	l.stateMutex.Lock()
+	defer l.stateMutex.Unlock()
+
+	// Initialize the maps if they don't exist
+	if l.reverseSwapLocks == nil {
+		l.reverseSwapLocks = make(map[uint64]*time.Time)
+		return
+	}
+
+	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
+		log.Infof("Released reverse swap lock for channel %d that was acquired at %s", channelId, lockTime.Format(time.RFC3339))
+		delete(l.reverseSwapLocks, channelId)
 	}
 }
 
@@ -90,7 +140,7 @@ func (l *LoopProvider) releaseReverseSwapLock() {
 func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request SubmarineSwapRequest, client looprpc.SwapClientClient) (SubmarineSwapResponse, error) {
 
 	//Check that no sub swap is already in progress and acquire lock (rate limiting)
-	err := l.acquireSubmarineSwapLock()
+	err := l.acquireSubmarineSwapLock(request.ChannelId)
 	if err != nil {
 		log.Error(err)
 		return SubmarineSwapResponse{}, err
@@ -198,7 +248,7 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request ReverseSubmarineSwapRequest, client looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error) {
 
 	//Check that no other swap is in progress and acquire lock (rate limiting)
-	err := l.acquireReverseSwapLock()
+	err := l.acquireReverseSwapLock(request.ChannelId)
 	if err != nil {
 		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
@@ -262,12 +312,12 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxSwapFee:          int64(limits.maxSwapFee),
 		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
 		MaxSwapRoutingFee:   maxSwapRoutingFee,
-		// OutgoingChanSet:     request.ChannelSet, Disabled, evidence indicates this is not needed
+		// OutgoingChanSet:     []uint64{request.ChannelId}, Disabled, evidence indicates this is not needed
 		SweepConfTarget:   viper.GetInt32("sweepConfTarget"),
 		HtlcConfirmations: 3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
-		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s for channels: %v", request.SatsAmount, time.Now().Format(time.RFC3339), request.ChannelSet),
+		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s for channel: %d", request.SatsAmount, time.Now().Format(time.RFC3339), request.ChannelId),
 		Initiator:               "Liquidator",
 	})
 
@@ -293,7 +343,7 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 }
 
 // Get the status of a swap by invoking SwapInfo method from the client
-func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
+func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client looprpc.SwapClientClient) (*looprpc.SwapStatus, error) {
 
 	log.Infof("getting swap status for swapId: %s", swapId)
 
@@ -303,7 +353,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 		//Log error
 		log.Error(err)
 
-		return looprpc.SwapStatus{}, err
+		return nil, err
 	}
 
 	//Decode swapId from hex string to bytes
@@ -312,7 +362,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	if err != nil {
 		//Log error
 		log.Errorf("error decoding swapId: %s", err)
-		return looprpc.SwapStatus{}, err
+		return nil, err
 	}
 
 	//Get swap info
@@ -323,7 +373,7 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	if err != nil {
 		//Log error
 		log.Errorf("error getting swap info: %s", err)
-		return looprpc.SwapStatus{}, err
+		return nil, err
 	}
 
 	//Log response
@@ -332,17 +382,17 @@ func (l *LoopProvider) GetSwapStatus(ctx context.Context, swapId string, client 
 	//Log success
 	log.Infof("swap status for swapId: %s is %s", swapId, swapInfo.State.String())
 
-	return *swapInfo, nil
+	return swapInfo, nil
 
 }
 
 // Monitor a swap status changes and stops when the swap is completed or failed
-func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClient looprpc.SwapClientClient) (looprpc.SwapStatus, error) {
+func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClient looprpc.SwapClientClient) (*looprpc.SwapStatus, error) {
 
 	if swapId == "" {
 		err := fmt.Errorf("swapId is empty")
 		log.Error(err)
-		return looprpc.SwapStatus{}, err
+		return nil, err
 	}
 
 	//Decode swapId from hex string to bytes
@@ -350,7 +400,7 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 	if err != nil {
 		//Log error
 		log.Errorf("error decoding swapId: %s", err)
-		return looprpc.SwapStatus{}, err
+		return nil, err
 	}
 
 	for {
@@ -363,7 +413,7 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 		if err != nil {
 			//Log error
 			log.Errorf("error getting swap info: %s", err)
-			return looprpc.SwapStatus{}, err
+			return nil, err
 		}
 
 		//Log response
@@ -371,7 +421,7 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 
 		//If the swap is completed or failed, return the response
 		if swapInfo.State == looprpc.SwapState_SUCCESS || swapInfo.State == looprpc.SwapState_FAILED {
-			return *swapInfo, nil
+			return swapInfo, nil
 		}
 
 		time.Sleep(1 * time.Second)

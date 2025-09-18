@@ -580,6 +580,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 	swapRequest := provider.SubmarineSwapRequest{
 		SatsAmount:    swapAmount,
 		LastHopPubkey: channel.RemotePubkey,
+		ChannelId:     channel.GetChanId(),
 	}
 
 	//Log including channel.GetChanId() and swapAmount
@@ -700,7 +701,7 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 		swapType := "swap"
 
 		//Add fees to counter
-		recordSwapFees(swapStatus, info, swapType, channel)
+		recordSwapFees(*swapStatus, info, swapType, channel)
 	}
 	return nil
 }
@@ -728,7 +729,7 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 	//Perform the swap
 	swapRequest := provider.ReverseSubmarineSwapRequest{
 		SatsAmount:         swapAmount,
-		ChannelSet:         []uint64{channel.GetChanId()},
+		ChannelId:          channel.GetChanId(),
 		ReceiverBTCAddress: address,
 	}
 
@@ -790,7 +791,7 @@ func performReverseSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel,
 		swapType := "rswap"
 
 		//Add fees to counter
-		recordSwapFees(swapStatus, info, swapType, channel)
+		recordSwapFees(*swapStatus, info, swapType, channel)
 	}
 	return nil
 }
