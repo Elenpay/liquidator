@@ -17,10 +17,6 @@ install-loopd-loop:
 
 compile-nodeguard-proto:
     rm -rf nodeguard && protoc -I rpc --go_out=. --go-grpc_out=.  rpc/*.proto && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard && mockgen -destination ./nodeguard/nodeguard_mock.go -source nodeguard/nodeguard_grpc.pb.go  -package nodeguard
-compile-lnd-client-mock:
-    mockgen -destination lightning_rpc_mock.go -source lnd/lnrpc/lightning_grpc.pb.go  -package main
-compile-provider-mock:
-    mockgen -destination ./provider/provider_mock.go -source provider/provider.go  -package provider && mockgen -destination ./provider/loopd_mock.go -source loop/looprpc/client_grpc.pb.go  -package provider 
 cover-test:
     go test ./... -coverprofile=coverage.out; go tool cover -html=coverage.out
 start-loopserver: build-loopserver
