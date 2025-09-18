@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ func TestMain(m *testing.M) {
 func setLimitFees() {
 	viper.Set("limitQuoteFees", "0.005")
 	viper.Set("limitFeesL2", "0.002")
+	viper.Set("swapLockTimeout", "30s") // Set a short timeout for testing
 }
 
 func TestLoopProvider_RequestSubmarineSwap(t *testing.T) {
@@ -363,199 +366,6 @@ func TestLoopProvider_GetSwapStatus(t *testing.T) {
 	}
 }
 
-func Test_checkSubmarineSwapNotInProgress(t *testing.T) {
-
-	//Swap client with ListSwaps returning a swap in progress
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	//Mock SwapInfo
-	swapClientWithOngoingSwaps := NewMockSwapClientClient(ctrl)
-	idBytes, err := hex.DecodeString("1234")
-	if err != nil {
-		t.Errorf("Error decoding hex string: %v", err)
-	}
-
-	swapClientWithOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{
-			{
-				Amt:           0,
-				Id:            "",
-				IdBytes:       idBytes,
-				Type:          looprpc.SwapType_LOOP_IN,
-				State:         looprpc.SwapState_INITIATED,
-				FailureReason: 0,
-				//InitiationTime 4 hours ago
-				InitiationTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
-				LastUpdateTime:   time.Now().Add(-4 * time.Hour).UnixNano(),
-				HtlcAddress:      "",
-				HtlcAddressP2Wsh: "",
-				HtlcAddressP2Tr:  "",
-				CostServer:       0,
-				CostOnchain:      0,
-				CostOffchain:     0,
-				LastHop:          []byte{},
-				OutgoingChanSet:  []uint64{},
-				Label:            "",
-			},
-		},
-	}, nil).AnyTimes()
-
-	//Swap client with ListSwaps returning no swaps
-	swapClientWithNoOngoingSwaps := NewMockSwapClientClient(ctrl)
-	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{
-			{
-				Amt:           0,
-				Id:            "",
-				IdBytes:       idBytes,
-				Type:          looprpc.SwapType_LOOP_IN,
-				State:         looprpc.SwapState_INITIATED,
-				FailureReason: 0,
-				//InitiationTime is more than 24 hours ago, stuck but ignored
-				InitiationTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
-				LastUpdateTime:   time.Now().Add(-25 * time.Hour).UnixNano(),
-				HtlcAddress:      "",
-				HtlcAddressP2Wsh: "",
-				HtlcAddressP2Tr:  "",
-				CostServer:       0,
-				CostOnchain:      0,
-				CostOffchain:     0,
-				LastHop:          []byte{},
-				OutgoingChanSet:  []uint64{},
-				Label:            "",
-			},
-		},
-	}, nil).AnyTimes()
-
-	type args struct {
-		ctx    context.Context
-		client looprpc.SwapClientClient
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "checkSubmarineSwapNotInProgress_valid",
-			args: args{
-				ctx:    context.Background(),
-				client: swapClientWithNoOngoingSwaps,
-			},
-			wantErr: false,
-		},
-		{
-			name: "checkSubmarineSwapNotInProgress_ErrorOngoingSwap",
-			args: args{
-				ctx:    context.Background(),
-				client: swapClientWithOngoingSwaps,
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := checkSubmarineSwapNotInProgress(tt.args.ctx, tt.args.client); (err != nil) != tt.wantErr {
-				t.Errorf("checkSubmarineSwapNotInProgress() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// checkReverseSubmarineSwapNotInProgress
-func Test_checkReverseSubmarineSwapNotInProgress(t *testing.T) {
-
-	//Swap client with ListSwaps returning a swap in progress
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	channelSet := []uint64{1, 2, 3}
-
-	//Mock SwapInfo
-	swapClientWithOngoingSwaps := NewMockSwapClientClient(ctrl)
-	idBytes, err := hex.DecodeString("1234")
-	if err != nil {
-		t.Errorf("Error decoding hex string: %v", err)
-	}
-
-	swapClientWithOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{
-			{
-				Amt:              0,
-				Id:               "",
-				IdBytes:          idBytes,
-				Type:             looprpc.SwapType_LOOP_OUT,
-				State:            looprpc.SwapState_INITIATED,
-				FailureReason:    0,
-				InitiationTime:   0,
-				LastUpdateTime:   0,
-				HtlcAddress:      "",
-				HtlcAddressP2Wsh: "",
-				HtlcAddressP2Tr:  "",
-				CostServer:       0,
-				CostOnchain:      0,
-				CostOffchain:     0,
-				LastHop:          []byte{},
-				OutgoingChanSet:  channelSet,
-				Label:            "",
-			},
-		},
-	}, nil).AnyTimes()
-
-	//Swap client with ListSwaps returning no swaps
-	swapClientWithNoOngoingSwaps := NewMockSwapClientClient(ctrl)
-	swapClientWithNoOngoingSwaps.EXPECT().ListSwaps(gomock.Any(), gomock.Any()).Return(&looprpc.ListSwapsResponse{
-		Swaps: []*looprpc.SwapStatus{},
-	}, nil).AnyTimes()
-
-	type args struct {
-		ctx     context.Context
-		client  looprpc.SwapClientClient
-		request ReverseSubmarineSwapRequest
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "checkReverseSubmarineSwapNotInProgress_valid",
-			args: args{
-				ctx:    context.Background(),
-				client: swapClientWithNoOngoingSwaps,
-				request: ReverseSubmarineSwapRequest{
-					ReceiverBTCAddress: "",
-					SatsAmount:         0,
-					ChannelSet:         channelSet,
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "checkReverseSubmarineSwapNotInProgress_ErrorOngoingSwap",
-			args: args{
-				ctx:    context.Background(),
-				client: swapClientWithOngoingSwaps,
-				request: ReverseSubmarineSwapRequest{
-					ReceiverBTCAddress: "",
-					SatsAmount:         0,
-					ChannelSet:         channelSet,
-				},
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := checkReverseSubmarineSwapNotInProgress(tt.args.ctx, tt.args.client, tt.args.request); (err != nil) != tt.wantErr {
-				t.Errorf("checkReverseSubmarineSwapNotInProgress() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-
-}
-
 func TestLoopProvider_MonitorSwap(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
@@ -661,4 +471,207 @@ func TestLoopProvider_MonitorSwap(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestLoopProvider_LockFunctionality tests the submarine swap and reverse swap locking mechanisms
+func TestLoopProvider_LockFunctionality(t *testing.T) {
+
+	// Test submarine swap lock functionality
+	t.Run("SubmarineSwapLock", func(t *testing.T) {
+		l := &LoopProvider{}
+
+		// Test acquiring lock for the first time
+		err := l.acquireSubmarineSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring submarine swap lock for the first time, got: %v", err)
+		}
+
+		// Test that lock is active - should fail to acquire again
+		err = l.acquireSubmarineSwapLock()
+		if err == nil {
+			t.Error("Expected error when trying to acquire submarine swap lock while already locked")
+		}
+
+		// Verify the error message contains rate limit info
+		if err != nil && !contains(err.Error(), "submarine swap is locked") {
+			t.Errorf("Expected rate limit error message, got: %v", err)
+		}
+
+		// Test manual release
+		l.releaseSubmarineSwapLock()
+
+		// Should be able to acquire again after release
+		err = l.acquireSubmarineSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring submarine swap lock after release, got: %v", err)
+		}
+
+		// Clean up
+		l.releaseSubmarineSwapLock()
+	})
+
+	// Test reverse swap lock functionality
+	t.Run("ReverseSwapLock", func(t *testing.T) {
+		l := &LoopProvider{}
+
+		// Test acquiring lock for the first time
+		err := l.acquireReverseSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring reverse swap lock for the first time, got: %v", err)
+		}
+
+		// Test that lock is active - should fail to acquire again
+		err = l.acquireReverseSwapLock()
+		if err == nil {
+			t.Error("Expected error when trying to acquire reverse swap lock while already locked")
+		}
+
+		// Verify the error message contains rate limit info
+		if err != nil && !contains(err.Error(), "reverse submarine swap is locked") {
+			t.Errorf("Expected rate limit error message, got: %v", err)
+		}
+
+		// Test manual release
+		l.releaseReverseSwapLock()
+
+		// Should be able to acquire again after release
+		err = l.acquireReverseSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring reverse swap lock after release, got: %v", err)
+		}
+
+		// Clean up
+		l.releaseReverseSwapLock()
+	})
+
+	// Test that submarine and reverse swap locks are independent
+	t.Run("IndependentLocks", func(t *testing.T) {
+		l := &LoopProvider{}
+
+		// Acquire submarine swap lock
+		err := l.acquireSubmarineSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring submarine swap lock, got: %v", err)
+		}
+
+		// Should still be able to acquire reverse swap lock
+		err = l.acquireReverseSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring reverse swap lock while submarine swap is locked, got: %v", err)
+		}
+
+		// Clean up
+		l.releaseSubmarineSwapLock()
+		l.releaseReverseSwapLock()
+	})
+}
+
+// TestLoopProvider_LockTimeout tests the automatic timeout functionality
+func TestLoopProvider_LockTimeout(t *testing.T) {
+	// Set a very short timeout for this test
+	originalTimeout := viper.GetDuration("swapLockTimeout")
+	viper.Set("swapLockTimeout", "100ms")
+	defer viper.Set("swapLockTimeout", originalTimeout)
+
+	t.Run("SubmarineSwapLockTimeout", func(t *testing.T) {
+		l := &LoopProvider{}
+
+		// Acquire lock
+		err := l.acquireSubmarineSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring submarine swap lock, got: %v", err)
+		}
+
+		// Immediately try to acquire again - should fail
+		err = l.acquireSubmarineSwapLock()
+		if err == nil {
+			t.Error("Expected error when trying to acquire submarine swap lock while already locked")
+		}
+
+		// Wait for timeout
+		time.Sleep(150 * time.Millisecond)
+
+		// Should be able to acquire again after timeout
+		err = l.acquireSubmarineSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring submarine swap lock after timeout, got: %v", err)
+		}
+
+		// Clean up
+		l.releaseSubmarineSwapLock()
+	})
+
+	t.Run("ReverseSwapLockTimeout", func(t *testing.T) {
+		l := &LoopProvider{}
+
+		// Acquire lock
+		err := l.acquireReverseSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring reverse swap lock, got: %v", err)
+		}
+
+		// Immediately try to acquire again - should fail
+		err = l.acquireReverseSwapLock()
+		if err == nil {
+			t.Error("Expected error when trying to acquire reverse swap lock while already locked")
+		}
+
+		// Wait for timeout
+		time.Sleep(150 * time.Millisecond)
+
+		// Should be able to acquire again after timeout
+		err = l.acquireReverseSwapLock()
+		if err != nil {
+			t.Errorf("Expected no error when acquiring reverse swap lock after timeout, got: %v", err)
+		}
+
+		// Clean up
+		l.releaseReverseSwapLock()
+	})
+}
+
+// TestLoopProvider_ConcurrentLockAccess tests thread safety of the lock mechanism
+func TestLoopProvider_ConcurrentLockAccess(t *testing.T) {
+	l := &LoopProvider{}
+
+	t.Run("ConcurrentSubmarineSwapLock", func(t *testing.T) {
+		successCount := 0
+		errorCount := 0
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+
+		// Try to acquire the lock from multiple goroutines
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err := l.acquireSubmarineSwapLock()
+				mu.Lock()
+				if err == nil {
+					successCount++
+				} else {
+					errorCount++
+				}
+				mu.Unlock()
+			}()
+		}
+
+		wg.Wait()
+
+		// Only one should succeed, the rest should fail
+		if successCount != 1 {
+			t.Errorf("Expected exactly 1 successful lock acquisition, got: %d", successCount)
+		}
+		if errorCount != 9 {
+			t.Errorf("Expected exactly 9 failed lock acquisitions, got: %d", errorCount)
+		}
+
+		// Clean up
+		l.releaseSubmarineSwapLock()
+	})
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
 }
