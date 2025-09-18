@@ -497,17 +497,7 @@ func TestLoopProvider_LockFunctionality(t *testing.T) {
 			t.Errorf("Expected rate limit error message, got: %v", err)
 		}
 
-		// Test manual release
-		l.releaseSubmarineSwapLock()
-
-		// Should be able to acquire again after release
-		err = l.acquireSubmarineSwapLock()
-		if err != nil {
-			t.Errorf("Expected no error when acquiring submarine swap lock after release, got: %v", err)
-		}
-
-		// Clean up
-		l.releaseSubmarineSwapLock()
+		// Note: In production, lock only expires via timeout, no manual release for anti-spam
 	})
 
 	// Test reverse swap lock functionality
@@ -531,17 +521,7 @@ func TestLoopProvider_LockFunctionality(t *testing.T) {
 			t.Errorf("Expected rate limit error message, got: %v", err)
 		}
 
-		// Test manual release
-		l.releaseReverseSwapLock()
-
-		// Should be able to acquire again after release
-		err = l.acquireReverseSwapLock()
-		if err != nil {
-			t.Errorf("Expected no error when acquiring reverse swap lock after release, got: %v", err)
-		}
-
-		// Clean up
-		l.releaseReverseSwapLock()
+		// Note: In production, lock only expires via timeout, no manual release for anti-spam
 	})
 
 	// Test that submarine and reverse swap locks are independent
@@ -560,9 +540,7 @@ func TestLoopProvider_LockFunctionality(t *testing.T) {
 			t.Errorf("Expected no error when acquiring reverse swap lock while submarine swap is locked, got: %v", err)
 		}
 
-		// Clean up
-		l.releaseSubmarineSwapLock()
-		l.releaseReverseSwapLock()
+		// Note: In production, locks only expire via timeout, no manual release for anti-spam
 	})
 }
 
@@ -597,8 +575,7 @@ func TestLoopProvider_LockTimeout(t *testing.T) {
 			t.Errorf("Expected no error when acquiring submarine swap lock after timeout, got: %v", err)
 		}
 
-		// Clean up
-		l.releaseSubmarineSwapLock()
+		// Note: In production, locks only expire via timeout, no manual cleanup needed
 	})
 
 	t.Run("ReverseSwapLockTimeout", func(t *testing.T) {
@@ -625,8 +602,7 @@ func TestLoopProvider_LockTimeout(t *testing.T) {
 			t.Errorf("Expected no error when acquiring reverse swap lock after timeout, got: %v", err)
 		}
 
-		// Clean up
-		l.releaseReverseSwapLock()
+		// Note: In production, locks only expire via timeout, no manual cleanup needed
 	})
 }
 
@@ -666,8 +642,7 @@ func TestLoopProvider_ConcurrentLockAccess(t *testing.T) {
 			t.Errorf("Expected exactly 9 failed lock acquisitions, got: %d", errorCount)
 		}
 
-		// Clean up
-		l.releaseSubmarineSwapLock()
+		// Note: In production, locks only expire via timeout, no manual cleanup needed
 	})
 }
 

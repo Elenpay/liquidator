@@ -51,17 +51,6 @@ func (l *LoopProvider) acquireSubmarineSwapLock() error {
 	return nil
 }
 
-// releaseSubmarineSwapLock releases the submarine swap lock
-func (l *LoopProvider) releaseSubmarineSwapLock() {
-	l.stateMutex.Lock()
-	defer l.stateMutex.Unlock()
-
-	if l.submarineSwapLockTime != nil {
-		log.Infof("Released submarine swap lock that was acquired at %s", l.submarineSwapLockTime.Format(time.RFC3339))
-		l.submarineSwapLockTime = nil
-	}
-}
-
 // acquireReverseSwapLock tries to acquire the reverse swap lock
 func (l *LoopProvider) acquireReverseSwapLock() error {
 	l.stateMutex.Lock()
