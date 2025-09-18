@@ -18,10 +18,10 @@ type Provider interface {
 	RequestReverseSubmarineSwap(context.Context, ReverseSubmarineSwapRequest, looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error)
 
 	//Swap info
-	GetSwapStatus(context.Context, string, looprpc.SwapClientClient) (looprpc.SwapStatus, error)
+	GetSwapStatus(context.Context, string, looprpc.SwapClientClient) (*looprpc.SwapStatus, error)
 
 	//Monitor Swap by waiting for it to complete or fail
-	MonitorSwap(context.Context, string, looprpc.SwapClientClient) (looprpc.SwapStatus, error)
+	MonitorSwap(context.Context, string, looprpc.SwapClientClient) (*looprpc.SwapStatus, error)
 }
 
 // Provider-agnostic request for a submarine swap
@@ -29,6 +29,8 @@ type SubmarineSwapRequest struct {
 	SatsAmount int64
 	//Last hop node to identify which channel to use, if multiple channels are with this node then there is no way to know which one will be used
 	LastHopPubkey string
+	//Channel ID for per-channel locking
+	ChannelId uint64
 }
 
 // Provider-agnostic response for a submarine swap
@@ -43,7 +45,7 @@ type ReverseSubmarineSwapRequest struct {
 	//L1 Address to receive L2 funds
 	ReceiverBTCAddress string
 	SatsAmount         int64
-	ChannelSet         []uint64
+	ChannelId          uint64
 }
 
 // Provider-agnostic response for a reverse submarine swap
