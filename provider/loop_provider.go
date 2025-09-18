@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"reflect"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/Elenpay/liquidator/customerrors"
@@ -17,17 +17,86 @@ import (
 )
 
 type LoopProvider struct {
+	// Timestamp of when submarine swap lock was acquired
+	submarineSwapLockTime *time.Time
+
+	// Timestamp of when reverse submarine swap lock was acquired
+	reverseSwapLockTime *time.Time
+
+	// General mutex for managing lock state
+	stateMutex sync.RWMutex
+}
+
+// acquireSubmarineSwapLock tries to acquire the submarine swap lock
+func (l *LoopProvider) acquireSubmarineSwapLock() error {
+	l.stateMutex.Lock()
+	defer l.stateMutex.Unlock()
+
+	// Check if there's an active lock and if it has expired
+	if l.submarineSwapLockTime != nil {
+		swapLockTimeout := viper.GetDuration("swapLockTimeout")
+		if time.Since(*l.submarineSwapLockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("submarine swap is locked, started at %s, will expire at %s",
+					l.submarineSwapLockTime.Format(time.RFC3339),
+					l.submarineSwapLockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Acquire the lock
+	now := time.Now()
+	l.submarineSwapLockTime = &now
+	log.Infof("Acquired submarine swap lock at %s", now.Format(time.RFC3339))
+	return nil
+}
+
+// acquireReverseSwapLock tries to acquire the reverse swap lock
+func (l *LoopProvider) acquireReverseSwapLock() error {
+	l.stateMutex.Lock()
+	defer l.stateMutex.Unlock()
+
+	// Check if there's an active lock and if it has expired
+	if l.reverseSwapLockTime != nil {
+		swapLockTimeout := viper.GetDuration("swapLockTimeout")
+		if time.Since(*l.reverseSwapLockTime) < swapLockTimeout {
+			return &customerrors.SwapInProgressError{
+				Message: fmt.Sprintf("reverse submarine swap is locked, started at %s, will expire at %s",
+					l.reverseSwapLockTime.Format(time.RFC3339),
+					l.reverseSwapLockTime.Add(swapLockTimeout).Format(time.RFC3339)),
+			}
+		}
+	}
+
+	// Acquire the lock
+	now := time.Now()
+	l.reverseSwapLockTime = &now
+	log.Infof("Acquired reverse swap lock at %s", now.Format(time.RFC3339))
+	return nil
+}
+
+// releaseReverseSwapLock releases the reverse swap lock
+func (l *LoopProvider) releaseReverseSwapLock() {
+	l.stateMutex.Lock()
+	defer l.stateMutex.Unlock()
+
+	if l.reverseSwapLockTime != nil {
+		log.Infof("Released reverse swap lock that was acquired at %s", l.reverseSwapLockTime.Format(time.RFC3339))
+		l.reverseSwapLockTime = nil
+	}
 }
 
 // Submarine Swap L1->L2 based on loop (Loop In)
 func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request SubmarineSwapRequest, client looprpc.SwapClientClient) (SubmarineSwapResponse, error) {
 
-	//Check that no sub swap is already in progress
-	err := checkSubmarineSwapNotInProgress(ctx, client)
+	//Check that no sub swap is already in progress and acquire lock (rate limiting)
+	err := l.acquireSubmarineSwapLock()
 	if err != nil {
 		log.Error(err)
 		return SubmarineSwapResponse{}, err
 	}
+
+	// Note: Lock will expire automatically via timeout - no manual release for anti-spam purposes
 
 	if request.SatsAmount <= 0 {
 		//Create error
@@ -89,9 +158,10 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 		LastHop:        lastHopBytes,
 		ExternalHtlc:   true,
 		HtlcConfTarget: 0,
-		Label:          fmt.Sprintf("Submarine swap %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
+		Label:          fmt.Sprintf("Swap in %d sats on date %s", request.SatsAmount, time.Now().Format(time.RFC3339)),
 		Initiator:      "Liquidator",
-		Private:        false,
+		Private:        true,
+
 		//TODO Review if hop hints are needed
 	})
 
@@ -123,98 +193,18 @@ func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request Submari
 
 }
 
-// Check that a Submarine Swap is not already in progress, by now the limit is one swap at a time for Swaps L1->L2
-func checkSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient) error {
-
-	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
-	swaps, err := client.ListSwaps(ctx, &looprpc.ListSwapsRequest{})
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	//Filter swaps of Loop In type and which are not older than 24 hours (to avoid old swaps stuck in INITIATED or HTLC_PUBLISHED state to prevent new swaps)
-	var loopInSwaps []*looprpc.SwapStatus
-	for _, swap := range swaps.Swaps {
-		if swap.Type == looprpc.SwapType_LOOP_IN && time.Since(time.Unix(0, swap.InitiationTime)) < 24*time.Hour {
-			loopInSwaps = append(loopInSwaps, swap)
-		}
-	}
-
-	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
-	for _, swap := range loopInSwaps {
-		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
-			//Create error of Swap already in progress
-
-			id := hex.EncodeToString(swap.GetIdBytes())
-			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
-
-			swapInProgressErr := customerrors.SwapInProgressError{
-				Message: errMessage,
-			}
-
-			return &swapInProgressErr
-		}
-	}
-
-	return nil
-}
-
-// Function that checks that a reverse submarine swap is only one per this channelid
-func checkReverseSubmarineSwapNotInProgress(ctx context.Context, client looprpc.SwapClientClient, request ReverseSubmarineSwapRequest) error {
-
-	//Invoking ListSwaps check that a swap is not already in progress based on channelId of the request
-	swapRequest := &looprpc.ListSwapsRequest{}
-
-	log.Debugf("swapRequest: %+v", swapRequest)
-	log.Debugf("context: %+v", ctx)
-
-	swaps, err := client.ListSwaps(ctx, swapRequest)
-	if err != nil {
-		log.Error(err)
-		return err
-	}
-
-	//If there are no swaps, return nil
-	if len(swaps.Swaps) == 0 {
-		return nil
-	}
-
-	//Filter swaps of Loop Out type
-	var loopOutSwaps []*looprpc.SwapStatus
-	for _, swap := range swaps.Swaps {
-		if swap.Type == looprpc.SwapType_LOOP_OUT && reflect.DeepEqual(swap.OutgoingChanSet, request.ChannelSet) {
-			loopOutSwaps = append(loopOutSwaps, swap)
-		}
-	}
-
-	//CHeck that all the swaps status are either SUCCESS or FAILED, meaning that they are not in progress
-	for _, swap := range loopOutSwaps {
-		if swap.State != looprpc.SwapState_SUCCESS && swap.State != looprpc.SwapState_FAILED {
-			//Create error
-			id := hex.EncodeToString(swap.GetIdBytes())
-			errMessage := fmt.Sprintf("another submarine swap is already in progress, swap id: %s", id)
-
-			swapInProgressErr := customerrors.SwapInProgressError{
-				Message: errMessage,
-			}
-
-			return &swapInProgressErr
-		}
-
-	}
-	return nil
-}
-
+// Reverse Submarine Swap L2->L1 based on loop (Loop Out)
 // Reverse Submarine Swap L2->L1 based on loop (Loop Out)
 func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request ReverseSubmarineSwapRequest, client looprpc.SwapClientClient) (ReverseSubmarineSwapResponse, error) {
 
-	//Check that no other swap is in progress
-	err := checkReverseSubmarineSwapNotInProgress(ctx, client, request)
+	//Check that no other swap is in progress and acquire lock (rate limiting)
+	err := l.acquireReverseSwapLock()
 	if err != nil {
 		log.Error(err)
 		return ReverseSubmarineSwapResponse{}, err
 	}
+
+	// Note: Lock will expire automatically via timeout - no manual release for anti-spam purposes
 
 	if request.SatsAmount <= 0 {
 		//Create error
@@ -272,9 +262,9 @@ func (l *LoopProvider) RequestReverseSubmarineSwap(ctx context.Context, request 
 		MaxSwapFee:          int64(limits.maxSwapFee),
 		MaxPrepayRoutingFee: int64(limits.maxPrepayRoutingFee),
 		MaxSwapRoutingFee:   maxSwapRoutingFee,
-		OutgoingChanSet:     request.ChannelSet,
-		SweepConfTarget:     viper.GetInt32("sweepConfTarget"),
-		HtlcConfirmations:   3,
+		// OutgoingChanSet:     request.ChannelSet, Disabled, evidence indicates this is not needed
+		SweepConfTarget:   viper.GetInt32("sweepConfTarget"),
+		HtlcConfirmations: 3,
 		//The publication deadline is maximum the offset of the swap deadline conf plus the current time
 		SwapPublicationDeadline: uint64(time.Now().Add(viper.GetDuration("swapPublicationOffset") * time.Minute).Unix()),
 		Label:                   fmt.Sprintf("Reverse submarine swap %d sats on date %s for channels: %v", request.SatsAmount, time.Now().Format(time.RFC3339), request.ChannelSet),
@@ -363,8 +353,6 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 		return looprpc.SwapStatus{}, err
 	}
 
-	var response looprpc.SwapStatus
-
 	for {
 
 		//Get swap status
@@ -383,14 +371,11 @@ func (l *LoopProvider) MonitorSwap(ctx context.Context, swapId string, swapClien
 
 		//If the swap is completed or failed, return the response
 		if swapInfo.State == looprpc.SwapState_SUCCESS || swapInfo.State == looprpc.SwapState_FAILED {
-			response = *swapInfo
-			break
+			return *swapInfo, nil
 		}
 
 		time.Sleep(1 * time.Second)
 
 	}
-
-	return response, nil
 
 }

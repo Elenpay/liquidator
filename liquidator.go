@@ -639,8 +639,9 @@ func performSwap(info ManageChannelLiquidityInfo, channel *lnrpc.Channel, swapAm
 		WalletId:       rule.SwapWalletId,
 		Address:        resp.InvoiceBTCAddress,
 		Amount:         swapAmount,
+		Destinations:   []*nodeguard.Destination{{Address: resp.InvoiceBTCAddress, AmountSats: swapAmount}},
 		Description:    fmt.Sprintf("Swap %v", resp.SwapId),
-		MempoolFeeRate: nodeguard.FEES_TYPE_ECONOMY_FEE,
+		MempoolFeeRate: nodeguard.FEES_TYPE_FASTEST_FEE,
 	}
 
 	withdrawalResponse, err := info.nodeguardClient.RequestWithdrawal(info.ctx, &withdrawalRequest)

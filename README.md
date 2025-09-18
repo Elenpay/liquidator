@@ -23,6 +23,7 @@ Flags:
       --nodeguardHost string           Hostname:port to connect to nodeguard
       --pollingInterval string         Interval to poll data (default "15s")
       --retriesBeforeBackoff int       Number of retries before applying backoff to the swap (default 3)
+      --swapLockTimeout string         Timeout for swap locks to automatically expire (default "30m")
       --swapPublicationOffset string   Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default "60m")
       --sweepConfTarget string         Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution (default "400")
 ```
@@ -63,6 +64,7 @@ All the flags can be set as environment variables, with the following format, ex
 - LOGLEVEL (optional) : Log level (default info) from: {trace, debug, info, warn, error, fatal, panic}
 - LOGFORMAT (optional) : Log format (default json) from: {json, text}
 - SWAPPUBLICATIONOFFSET (optional) : Swap publication deadline offset (Maximum time for the swap provider to publish the swap) (default 30m)
+- SWAPLOCKTIMEOUT (optional) : Timeout for swap locks to automatically expire (default 30m)
 - RETRIESBEFOREBACKOFF (optional) : Number of retries before applying backoff to the swap (default: 3)
 - BACKOFFCOEFFICIENT (optional) : Coefficient to apply to the backoff (default: 0.95)
 - BACKOFFLIMIT (optional) : Limit coefficient of the backoff (default: 0.1)

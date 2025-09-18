@@ -125,6 +125,10 @@ func init() {
 	rootCmd.Flags().String("sweepConfTarget", "400", "Target number of confirmations for swaps, this uses bitcoin core broken estimator, procced with caution")
 	viper.BindPFlag("sweepConfTarget", rootCmd.Flags().Lookup("sweepConfTarget"))
 
+	// Swap lock timeout
+	rootCmd.Flags().String("swapLockTimeout", "30m", "Timeout for swap locks to automatically expire (e.g. 30m, 1h, 45m)")
+	viper.BindPFlag("swapLockTimeout", rootCmd.Flags().Lookup("swapLockTimeout"))
+
 	//Now we set the global vars
 
 	pollingInterval = viper.GetDuration("pollingInterval")
