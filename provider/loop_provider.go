@@ -119,23 +119,6 @@ func (l *LoopProvider) acquireReverseSwapLock(channelId uint64) error {
 	return nil
 }
 
-// releaseReverseSwapLock releases the reverse swap lock for a specific channel
-func (l *LoopProvider) releaseReverseSwapLock(channelId uint64) {
-	l.stateMutex.Lock()
-	defer l.stateMutex.Unlock()
-
-	// Initialize the maps if they don't exist
-	if l.reverseSwapLocks == nil {
-		l.reverseSwapLocks = make(map[uint64]*time.Time)
-		return
-	}
-
-	if lockTime, exists := l.reverseSwapLocks[channelId]; exists && lockTime != nil {
-		log.Infof("Released reverse swap lock for channel %d that was acquired at %s", channelId, lockTime.Format(time.RFC3339))
-		delete(l.reverseSwapLocks, channelId)
-	}
-}
-
 // Submarine Swap L1->L2 based on loop (Loop In)
 func (l *LoopProvider) RequestSubmarineSwap(ctx context.Context, request SubmarineSwapRequest, client looprpc.SwapClientClient) (SubmarineSwapResponse, error) {
 
