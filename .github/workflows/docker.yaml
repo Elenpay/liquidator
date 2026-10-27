@@ -40,7 +40,7 @@ jobs:
             actions_run=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             
       - name: Build and push the Docker image
-        uses: docker/build-push-action@v4.2.1
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           file: Dockerfile
