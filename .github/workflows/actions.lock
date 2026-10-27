@@ -9,7 +9,7 @@ workflows:
         - 'actions/checkout@v7.0.1'
         - 'anchore/scan-action@v3.6.4'
         - 'docker/build-push-action@v4.2.1'
-        - 'docker/login-action@v2.2.0'
+        - 'docker/login-action@v4.7.0'
         - 'docker/metadata-action@v4.6.0'
         - 'docker/setup-buildx-action@v2.10.0'
     '.github/workflows/go.yml':
@@ -36,9 +36,9 @@ dependencies:
         commit: 'sha1-0a97817b6ade9f46837855d676c4cca3a2471fc9'
         owner_id: 5429470
         repo_id: 241092383
-    'docker/login-action@v2.2.0':
-        ref: 'v2.2.0'
-        commit: 'sha1-465a07811f14bebb1938fbed4728c6a1ff8901fc'
+    'docker/login-action@v4.7.0':
+        ref: 'v4.7.0'
+        commit: 'sha1-81c6f93d4bc991e510b342a00b419b3bb4efc5c6'
         owner_id: 5429470
         repo_id: 287743349
     'docker/metadata-action@v4.6.0':
