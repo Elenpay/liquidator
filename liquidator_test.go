@@ -10,6 +10,7 @@ import (
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.uber.org/goleak"
@@ -134,7 +135,16 @@ func Test_manageChannelLiquidity(t *testing.T) {
 	//Mock for lightning clients for invoice rebalance
 	lightningClient := NewMockLightningClient(mockCtrl)
 	lightningClient.EXPECT().AddInvoice(gomock.Any(), gomock.Any()).Return(&lnrpc.AddInvoiceResponse{}, nil).AnyTimes()
-	lightningClient.EXPECT().SendPaymentSync(gomock.Any(), gomock.Any()).Return(&lnrpc.SendResponse{}, nil).AnyTimes()
+
+	paymentStream := NewMockRouter_SendPaymentV2Client(mockCtrl)
+	paymentStream.EXPECT().Recv().Return(&lnrpc.Payment{Status: lnrpc.Payment_SUCCEEDED}, nil).AnyTimes()
+	routerClient := NewMockRouterClient(mockCtrl)
+	routerClient.EXPECT().SendPaymentV2(gomock.Any(), gomock.Any()).Return(paymentStream, nil).AnyTimes()
+
+	failedPaymentStream := NewMockRouter_SendPaymentV2Client(mockCtrl)
+	failedPaymentStream.EXPECT().Recv().Return(&lnrpc.Payment{Status: lnrpc.Payment_FAILED, FailureReason: lnrpc.PaymentFailureReason_FAILURE_REASON_NO_ROUTE}, nil).AnyTimes()
+	failingRouterClient := NewMockRouterClient(mockCtrl)
+	failingRouterClient.EXPECT().SendPaymentV2(gomock.Any(), gomock.Any()).Return(failedPaymentStream, nil).AnyTimes()
 
 	nodeInfo := lnrpc.GetInfoResponse{
 		Alias:          "Test",
@@ -302,6 +312,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				BaseInfo: BaseInfo{
 					nodeInfo:         nodeInfo,
 					lightningClients: map[string]lnrpc.LightningClient{"1": lightningClient, "2": lightningClient},
+					routerClients:    map[string]routerrpc.RouterClient{"1": routerClient, "2": routerClient},
 					nodeMacaroon:     "1",
 					loopdMacaroon:    "2",
 				},
@@ -324,6 +335,7 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				BaseInfo: BaseInfo{
 					nodeInfo:         nodeInfo,
 					lightningClients: map[string]lnrpc.LightningClient{"1": lightningClient, "2": lightningClient},
+					routerClients:    map[string]routerrpc.RouterClient{"1": routerClient, "2": routerClient},
 					nodeMacaroon:     "1",
 					loopdMacaroon:    "2",
 				},
@@ -339,6 +351,29 @@ func Test_manageChannelLiquidity(t *testing.T) {
 				ctx: context.TODO(),
 			},
 			wantErr: false,
+		},
+		{
+			name: "Manage channel liquidity test failed invoice rebalance payment",
+			args: ManageChannelLiquidityInfo{
+				BaseInfo: BaseInfo{
+					nodeInfo:         nodeInfo,
+					lightningClients: map[string]lnrpc.LightningClient{"1": lightningClient, "2": lightningClient},
+					routerClients:    map[string]routerrpc.RouterClient{"1": failingRouterClient, "2": failingRouterClient},
+					nodeMacaroon:     "1",
+					loopdMacaroon:    "2",
+				},
+				channel:             channelActive,
+				channelBalanceRatio: 0.9,
+				channelRules: &[]nodeguard.LiquidityRule{{
+					NodePubkey:           "1",
+					MinimumLocalBalance:  20,
+					MinimumRemoteBalance: 80,
+					RebalanceTarget:      50,
+					RemoteNodePubkey:     "2",
+				}},
+				ctx: context.TODO(),
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {

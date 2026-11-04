@@ -21,8 +21,12 @@ import (
 	"github.com/Elenpay/liquidator/nodeguard"
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/Elenpay/liquidator/rpc"
+	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
+	"github.com/lightningnetwork/lnd/lnwallet"
+	"github.com/lightningnetwork/lnd/lnwire"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -74,6 +78,7 @@ func startLiquidator() {
 	//For each node in nodesHosts, connect to the node and get the list of channels
 
 	lightningClients := make(map[string]lnrpc.LightningClient)
+	routerClients := make(map[string]routerrpc.RouterClient)
 	nodeCtxs := make(map[string]context.Context)
 
 	for i, lndconnectURI := range lndconnectURIs {
@@ -149,6 +154,7 @@ func startLiquidator() {
 
 		//Store the lightning client in a map so that it can be used later
 		lightningClients[nodeInfo.IdentityPubkey] = lightningClient
+		routerClients[nodeInfo.IdentityPubkey] = routerrpc.NewRouterClient(conn)
 
 		wg.Add(1)
 
@@ -169,6 +175,7 @@ func startLiquidator() {
 				nodeMacaroon:     nodeMacaroon,
 				loopdMacaroon:    loopdMacaroon,
 				lightningClients: lightningClients,
+				routerClients:    routerClients,
 				nodeguardClient:  nodeguardClient,
 				swapClient:       swapClient,
 				nodeCtxs:         nodeCtxs,
@@ -551,22 +558,46 @@ func invoiceRebalance(info ManageChannelLiquidityInfo, swapAmount int64, payerPu
 	}
 
 	payeeLnClient := info.lightningClients[payeePubKey]
-	payerLnClient := info.lightningClients[payerPubKey]
+	payerRouterClient := info.routerClients[payerPubKey]
+	if payerRouterClient == nil {
+		return fmt.Errorf("no router client for payer node %v", payerPubKey)
+	}
 
 	invoiceResponse, err := payeeLnClient.AddInvoice(info.nodeCtxs[payeePubKey], invoiceRequest)
 	if err != nil {
 		return err
 	}
 
-	sendResponse, err := payerLnClient.SendPaymentSync(info.nodeCtxs[payerPubKey], &lnrpc.SendRequest{
+	// SendPaymentSync was removed in LND 0.21, use routerrpc.SendPaymentV2 with the same defaults (fee limit and 60s timeout)
+	// SendPaymentSync applied LND's default fee limit when none was set (100% of the amount up to 1000 sats, 5% above).
+	// SendPaymentV2 has no default and fails any route with fees if the limit is 0, so we set the same limit explicitly
+	// to keep the previous behavior.
+	feeLimit := lnwallet.DefaultRoutingFeeLimitForAmount(lnwire.NewMSatFromSatoshis(btcutil.Amount(swapAmount)))
+	stream, err := payerRouterClient.SendPaymentV2(info.nodeCtxs[payerPubKey], &routerrpc.SendPaymentRequest{
 		PaymentRequest: invoiceResponse.PaymentRequest,
+		FeeLimitMsat:   int64(feeLimit),
+		TimeoutSeconds: 60,
+		// SendPaymentSync never split payments (MaxParts was hard-coded to 1), while SendPaymentV2 defaults to 16 parts.
+		// Keep a single part so the rebalance behaves as before.
+		MaxParts: 1,
 	})
 	if err != nil {
 		return err
 	}
 
-	if sendResponse.PaymentError != "" {
-		return errors.New(sendResponse.PaymentError)
+	for {
+		payment, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+
+		if payment.Status == lnrpc.Payment_FAILED {
+			return fmt.Errorf("payment failed: %v", payment.FailureReason)
+		}
+
+		if payment.Status == lnrpc.Payment_SUCCEEDED {
+			break
+		}
 	}
 
 	log.Infof("invoice rebalance successful for channel %v on node %v", info.channel.GetChanId(), info.nodeInfo.GetIdentityPubkey())

@@ -7,6 +7,7 @@ import (
 	"github.com/Elenpay/liquidator/provider"
 	"github.com/lightninglabs/loop/looprpc"
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
 
 type BaseInfo struct {
@@ -15,6 +16,7 @@ type BaseInfo struct {
 	nodeMacaroon     string
 	loopdMacaroon    string
 	lightningClients map[string]lnrpc.LightningClient
+	routerClients    map[string]routerrpc.RouterClient
 	nodeguardClient  nodeguard.NodeGuardServiceClient
 	swapClient       looprpc.SwapClientClient
 	// nodeCtxs is a map of contexts for each node, the context has the macaroon attached
